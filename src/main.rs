@@ -2,15 +2,15 @@ use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use dialoguer::{Input, Password};
 use owo_colors::OwoColorize;
-use routr_smart_routing::{Budget, Quality, resolve_routing_policy, select_model};
+use shipr_smart_routing::{Budget, Quality, resolve_routing_policy, select_model};
 use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "routr",
+    name = "shipr",
     version,
-    about = "Routr — minimal coding harness with smart low-cost routing",
+    about = "Shipr — minimal coding harness with smart low-cost routing",
     long_about = "A lightweight CLI harness for coding tasks.\nRuns a tiny plan -> execute -> verify -> summarize loop and uses harness-level smart routing to reduce cost."
 )]
 struct Cli {
@@ -37,7 +37,7 @@ enum Commands {
 }
 
 #[derive(Debug)]
-struct RoutrConfig {
+struct ShiprConfig {
     base_url: String,
     api_key: String,
 }
@@ -58,7 +58,7 @@ fn main() -> Result<()> {
 }
 
 fn start_setup() -> Result<()> {
-    print_header("Routr", "lightweight harness setup");
+    print_header("shipr", "setup");
 
     if let Some(config) = load_config()? {
         println!(
@@ -66,15 +66,11 @@ fn start_setup() -> Result<()> {
             "✓".bright_green(),
             config.base_url.bright_white()
         );
-        println!(
-            "{} {}",
-            "config".bold().bright_white(),
-            config_path().display().to_string().truecolor(148, 163, 184)
-        );
+        print_kv("config", &config_path().display().to_string());
         return Ok(());
     }
 
-    print_section("sign in to litellm");
+    print_section("login");
 
     let base_url: String = Input::new()
         .with_prompt("LiteLLM base URL")
@@ -88,44 +84,37 @@ fn start_setup() -> Result<()> {
         .interact()
         .context("failed to read API key input")?;
 
-    let config = RoutrConfig { base_url, api_key };
+    let config = ShiprConfig { base_url, api_key };
     validate_config(&config)?;
     save_config(&config)?;
 
     println!("{} signed in and saved config", "✓".bright_green());
-    println!(
-        "{} {}",
-        "next".bold().bright_white(),
-        "routr run \"refactor retry flow\"".truecolor(148, 163, 184)
-    );
+    print_kv("next", "shipr run \"refactor retry flow\"");
 
     Ok(())
 }
 
 fn preview_branding() -> Result<()> {
-    print_header("Routr", "minimal loop. smarter routing. lower cost.");
+    print_header("shipr", "minimal harness");
 
-    print_section("core pitch");
+    print_section("pitch");
+    println!("  {} only the agentic loop", "•".truecolor(246, 178, 137));
     println!(
-        "  {} lightweight by default: just the agentic loop",
+        "  {} smart routing at harness level",
         "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} harness-level smart router for cheaper model selection",
-        "•".truecolor(246, 178, 137)
-    );
-    println!(
-        "  {} built to be materially cheaper than heavy coding agents",
+        "  {} tuned for lower cost than heavy coding agents",
         "•".truecolor(246, 178, 137)
     );
 
-    print_section("aesthetic");
+    print_section("theme");
     println!(
-        "  {} dark terminal, low-noise layout, warm accent",
+        "  {} dark terminal, low-noise layout",
         "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} compact sections, understated typography",
+        "  {} single warm accent, compact typography",
         "•".truecolor(246, 178, 137)
     );
 
@@ -135,24 +124,20 @@ fn preview_branding() -> Result<()> {
     println!(
         "\n{} {}",
         "try".bold().bright_white(),
-        "routr run \"fix readme typo\"".truecolor(148, 163, 184)
+        "shipr run \"fix readme typo\"".truecolor(148, 163, 184)
     );
     println!(
         "{} {}",
         "try".bold().bright_white(),
-        "routr run \"investigate race condition in retries\"".truecolor(148, 163, 184)
+        "shipr run \"investigate race condition in retries\"".truecolor(148, 163, 184)
     );
 
     Ok(())
 }
 
 fn show_plan(task: &str) -> Result<()> {
-    print_header("Routr", "plan mode");
-    println!(
-        "{} {}",
-        "task".bold().bright_white(),
-        task.truecolor(226, 232, 240)
-    );
+    print_header("shipr", "plan");
+    print_kv("task", task);
 
     print_section("execution plan");
     println!(
@@ -181,50 +166,38 @@ fn run_task(
     budget_override: Option<Budget>,
 ) -> Result<()> {
     let Some(config) = load_config()? else {
-        bail!("not signed in. Run `routr start` first.");
+        bail!("not signed in. Run `shipr start` first.");
     };
 
     let routing = resolve_routing_policy(&task, quality_override, budget_override);
     let policy = routing.policy;
     let model = select_model(&policy);
 
-    print_header("Routr", "run mode");
-    println!(
-        "{} {}",
-        "task".bold().bright_white(),
-        task.truecolor(226, 232, 240)
+    print_header("shipr", "run");
+    print_kv("task", &task);
+    print_kv("litellm", &config.base_url);
+    print_kv(
+        "policy",
+        &format!(
+            "quality={} budget={}",
+            format_quality(policy.quality),
+            format_budget(policy.budget)
+        ),
     );
-    println!(
-        "{} {}",
-        "litellm".bold().bright_white(),
-        config.base_url.truecolor(148, 163, 184)
+    print_kv(
+        "routing",
+        &format!("{} ({})", routing.mode, routing.task_kind),
     );
-    println!(
-        "{} quality={} budget={}",
-        "policy".bold().bright_white(),
-        format_quality(policy.quality).truecolor(226, 232, 240),
-        format_budget(policy.budget).truecolor(226, 232, 240)
-    );
-    println!(
-        "{} {} ({})",
-        "routing".bold().bright_white(),
-        routing.mode.truecolor(246, 178, 137),
-        routing.task_kind.truecolor(148, 163, 184)
-    );
-    println!(
-        "{} {}",
-        "why".bold().bright_white(),
-        routing.reason.truecolor(148, 163, 184)
-    );
-    println!(
-        "{} {} ({}, est {})",
-        "route".bold().bright_white(),
-        model.name.truecolor(246, 178, 137),
-        model.rationale.truecolor(148, 163, 184),
-        model.estimated_cost.truecolor(148, 163, 184)
+    print_kv("why", &routing.reason);
+    print_kv(
+        "route",
+        &format!(
+            "{} ({}, est {})",
+            model.name, model.rationale, model.estimated_cost
+        ),
     );
 
-    print_section("agentic loop");
+    print_section("loop");
     for (phase, detail) in [
         ("PLAN", "build implementation checklist"),
         ("EXEC", "generate patch and apply changes"),
@@ -232,28 +205,24 @@ fn run_task(
         ("SUMMARIZE", "return final result"),
     ] {
         println!(
-            "  {} {}  {}",
+            "  {} {} {}",
             "•".truecolor(246, 178, 137),
-            phase.bold().bright_white(),
+            format!("[{}]", phase).bold().bright_white(),
             detail.truecolor(203, 213, 225)
         );
     }
 
-    println!(
-        "\n{} {}",
-        "outcome".bold().bright_white(),
-        "minimal loop with cost-aware smart routing ready".truecolor(226, 232, 240)
-    );
+    print_kv("status", "ready");
 
     Ok(())
 }
 
 fn config_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".routr").join("config.toml")
+    PathBuf::from(home).join(".shipr").join("config.toml")
 }
 
-fn load_config() -> Result<Option<RoutrConfig>> {
+fn load_config() -> Result<Option<ShiprConfig>> {
     let path = config_path();
     if !path.exists() {
         return Ok(None);
@@ -288,12 +257,12 @@ fn load_config() -> Result<Option<RoutrConfig>> {
         return Ok(None);
     };
 
-    let config = RoutrConfig { base_url, api_key };
+    let config = ShiprConfig { base_url, api_key };
     validate_config(&config)?;
     Ok(Some(config))
 }
 
-fn validate_config(config: &RoutrConfig) -> Result<()> {
+fn validate_config(config: &ShiprConfig) -> Result<()> {
     if config.base_url.trim().is_empty() {
         bail!("base URL cannot be empty");
     }
@@ -303,7 +272,7 @@ fn validate_config(config: &RoutrConfig) -> Result<()> {
     Ok(())
 }
 
-fn save_config(config: &RoutrConfig) -> Result<()> {
+fn save_config(config: &ShiprConfig) -> Result<()> {
     let path = config_path();
     let parent = path.parent().context("missing config parent directory")?;
     fs::create_dir_all(parent)
@@ -334,17 +303,25 @@ fn print_header(title: &str, subtitle: &str) {
     println!();
     println!(
         "{}",
-        "──────────────────────────────────────────────────────────────".truecolor(71, 85, 105)
+        "──────────────────────────────────────────────────────────────".truecolor(51, 65, 85)
     );
     println!(
         "{}  {}  {}",
-        "✶".truecolor(246, 178, 137),
+        "◉".truecolor(246, 178, 137),
         title.bold().bright_white(),
         subtitle.truecolor(148, 163, 184)
     );
     println!(
         "{}",
-        "──────────────────────────────────────────────────────────────".truecolor(71, 85, 105)
+        "──────────────────────────────────────────────────────────────".truecolor(51, 65, 85)
+    );
+}
+
+fn print_kv(key: &str, value: &str) {
+    println!(
+        "{} {}",
+        format!("{key:>8}").truecolor(148, 163, 184),
+        value.truecolor(226, 232, 240)
     );
 }
 
@@ -360,8 +337,8 @@ fn print_section(name: &str) {
 fn print_architecture_diagram() {
     print_section("architecture");
     println!("  developer");
-    println!("    └─ routr");
-    println!("       └─ minimal agentic loop");
+    println!("    └─ shipr");
+    println!("       └─ agentic loop");
     println!("          └─ smart routing crate");
     println!("             └─ litellm auto router");
 }

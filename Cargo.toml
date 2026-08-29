@@ -1,20 +1,20 @@
 [package]
-name = "routr-cli"
+name = "shipr-cli"
 version = "0.1.0"
 edition = "2024"
 description = "A minimal coding harness with smart low-cost LiteLLM routing"
 license = "MIT"
 
 [[bin]]
-name = "routr"
+name = "shipr"
 path = "src/main.rs"
 
 [workspace]
-members = ["crates/routr-smart-routing"]
+members = ["crates/shipr-smart-routing"]
 
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
 dialoguer = "0.11"
 owo-colors = "4.1"
-routr-smart-routing = { path = "crates/routr-smart-routing" }
+shipr-smart-routing = { path = "crates/shipr-smart-routing" }

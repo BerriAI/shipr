@@ -1,0 +1,9 @@
+[package]
+name = "shipr-smart-routing"
+version = "0.1.0"
+edition = "2024"
+description = "Task-aware smart routing policy for Shipr harness"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
