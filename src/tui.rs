@@ -148,7 +148,7 @@ impl App {
             "/exit" | "/quit" => self.should_quit = true,
             "/clear" => self.feed.clear(),
             "/help" => self.feed.push(FeedItem::Assistant(
-                "/clear  clear conversation\n/help   show commands\n/exit   leave shipr"
+                "/clear  clear conversation\n/help   show commands\n/exit   leave Shiprr"
                     .to_string(),
             )),
             _ => self
@@ -333,7 +333,10 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &App) {
 fn draw_header(frame: &mut ratatui::Frame<'_>, area: Rect) {
     let header = Paragraph::new(Line::from(vec![
         Span::styled(" ■ ■ ■ ", Style::default().fg(BLUE_DIM)),
-        Span::styled(" shipr ", Style::default().fg(Color::Black).bg(BLUE).bold()),
+        Span::styled(
+            " SHIPRR ",
+            Style::default().fg(Color::Black).bg(BLUE).bold(),
+        ),
         Span::styled("  cargo agent · underway", Style::default().fg(MUTED)),
     ]))
     .block(
@@ -465,7 +468,7 @@ fn draw_composer(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
         Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(Span::styled(" Ask shipr ", Style::default().fg(MUTED))),
+            .title(Span::styled(" Ask Shiprr ", Style::default().fg(MUTED))),
     );
     frame.render_widget(composer, area);
 

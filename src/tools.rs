@@ -397,7 +397,7 @@ fn truncate_output(mut output: String) -> String {
         boundary -= 1;
     }
     output.truncate(boundary);
-    output.push_str("\n… output truncated by shipr");
+    output.push_str("\n… output truncated by Shiprr");
     output
 }
 

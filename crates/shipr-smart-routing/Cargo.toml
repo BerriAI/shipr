@@ -2,7 +2,7 @@
 name = "shipr-smart-routing"
 version = "0.1.0"
 edition = "2024"
-description = "Task-aware smart routing policy for the shipr cargo agent"
+description = "Task-aware smart routing policy for the Shiprr cargo agent"
 license = "MIT"
 
 [dependencies]

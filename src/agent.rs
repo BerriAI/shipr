@@ -143,8 +143,8 @@ fn request_turn(
             "tool_choice": "auto",
             "stream": true,
             "metadata": {
-                "shipr_route": config.route,
-                "shipr_client": "shipr-cli"
+                "shiprr_route": config.route,
+                "shiprr_client": "shipr-cli"
             }
         }))
         .send()
@@ -255,7 +255,7 @@ fn request_approval(description: &str, emit: &mut impl FnMut(AgentEvent) -> bool
 
 fn system_prompt(workspace: String) -> String {
     format!(
-        "You are shipr, a minimal coding agent operating in {workspace}. \
+        "You are Shiprr, a minimal coding agent operating in {workspace}. \
 Use tools to inspect the repository before changing it. Make focused edits that solve the user's task. \
 All file paths must be relative to the workspace. Prefer replace_in_file for small edits and write_file for new files. \
 Run relevant checks after editing. Never claim a file or command changed unless the matching tool succeeded. \

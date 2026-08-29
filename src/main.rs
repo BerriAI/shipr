@@ -18,37 +18,37 @@ pub(crate) struct BrandLine {
 
 pub(crate) const BRAND_LINES: [BrandLine; 7] = [
     BrandLine {
-        icon: "       ■            ",
-        wordmark: "s h i p ",
-        accent: "r",
+        icon: "        ██         ",
+        wordmark: "S H I P ",
+        accent: "R R",
     },
     BrandLine {
-        icon: "    ■  ■  ■         ",
+        icon: "     ██ ██ ██      ",
         wordmark: "━━━  cargo agent · v0.1.0",
         accent: "",
     },
     BrandLine {
-        icon: "   ╲████████╱       ",
+        icon: "     ██ ██ ██      ",
         wordmark: "",
         accent: "",
     },
     BrandLine {
-        icon: "    ╲██████╱        ",
+        icon: "    ▀█████████▀    ",
         wordmark: "",
         accent: "",
     },
     BrandLine {
-        icon: "      ▀  ▀          ",
+        icon: "      ▀█████▀      ",
         wordmark: "",
         accent: "",
     },
     BrandLine {
-        icon: "                    ",
+        icon: "       ▀  ▀        ",
         wordmark: "",
         accent: "",
     },
     BrandLine {
-        icon: "      ■ ■ ■         ",
+        icon: "      ● ● ●        ",
         wordmark: "─────  underway",
         accent: "",
     },
@@ -58,7 +58,7 @@ pub(crate) const BRAND_LINES: [BrandLine; 7] = [
 #[command(
     name = "shipr",
     version,
-    about = "shipr — minimal cargo agent with smart low-cost routing",
+    about = "Shiprr — minimal cargo agent with smart low-cost routing",
     long_about = "A lightweight CLI harness for coding tasks.\nRuns a focused plan -> work -> verify loop and uses harness-level smart routing to reduce cost."
 )]
 struct Cli {
@@ -86,7 +86,7 @@ enum Commands {
 }
 
 #[derive(Debug)]
-struct ShiprConfig {
+struct ShiprrConfig {
     base_url: String,
     api_key: String,
     model: String,
@@ -119,7 +119,7 @@ fn launch_tui() -> Result<()> {
     })
 }
 
-fn ensure_config() -> Result<ShiprConfig> {
+fn ensure_config() -> Result<ShiprrConfig> {
     if let Some(config) = load_config()? {
         return Ok(config);
     }
@@ -129,7 +129,7 @@ fn ensure_config() -> Result<ShiprConfig> {
 }
 
 fn start_setup(force_login: bool) -> Result<()> {
-    print_shipr_banner();
+    print_shiprr_banner();
 
     if !force_login && let Some(config) = load_config()? {
         println!(
@@ -171,7 +171,7 @@ fn start_setup(force_login: bool) -> Result<()> {
         .interact_text()
         .context("failed to read model input")?;
 
-    let config = ShiprConfig {
+    let config = ShiprrConfig {
         base_url,
         api_key,
         model,
@@ -226,7 +226,7 @@ fn show_plan(task: &str) -> Result<()> {
 }
 
 fn preview_branding() -> Result<()> {
-    print_shipr_banner();
+    print_shiprr_banner();
     println!("{}", "minimal cargo agent".bold().bright_white());
     println!(
         "{} persistent IDE-like terminal surface",
@@ -243,7 +243,7 @@ fn preview_branding() -> Result<()> {
     Ok(())
 }
 
-fn print_shipr_banner() {
+fn print_shiprr_banner() {
     println!();
     for line in BRAND_LINES {
         println!(
@@ -261,7 +261,7 @@ fn config_path() -> PathBuf {
     PathBuf::from(home).join(".shipr").join("config.toml")
 }
 
-fn load_config() -> Result<Option<ShiprConfig>> {
+fn load_config() -> Result<Option<ShiprrConfig>> {
     let path = config_path();
     if !path.exists() {
         return Ok(None);
@@ -292,7 +292,7 @@ fn load_config() -> Result<Option<ShiprConfig>> {
     let (Some(base_url), Some(api_key)) = (base_url, api_key) else {
         return Ok(None);
     };
-    let config = ShiprConfig {
+    let config = ShiprrConfig {
         base_url,
         api_key,
         model: std::env::var("SHIPR_MODEL")
@@ -304,7 +304,7 @@ fn load_config() -> Result<Option<ShiprConfig>> {
     Ok(Some(config))
 }
 
-fn validate_config(config: &ShiprConfig) -> Result<()> {
+fn validate_config(config: &ShiprrConfig) -> Result<()> {
     if config.base_url.trim().is_empty() {
         bail!("base URL cannot be empty");
     }
@@ -317,7 +317,7 @@ fn validate_config(config: &ShiprConfig) -> Result<()> {
     Ok(())
 }
 
-fn save_config(config: &ShiprConfig) -> Result<()> {
+fn save_config(config: &ShiprrConfig) -> Result<()> {
     let path = config_path();
     let parent = path.parent().context("missing config parent directory")?;
     fs::create_dir_all(parent)
