@@ -5,7 +5,7 @@ Shipr is a minimal coding harness with a smart routing layer designed to cut cos
 ## Install
 
 ```bash
-cd litecode-cli
+cd shippr
 ./scripts/install.sh
 ```
 
@@ -15,7 +15,23 @@ cd litecode-cli
 shipr
 ```
 
-`shipr` with no args starts first-run sign-in.
+`shipr` with no args starts an agentic `shipr>` shell.
+On first run, it prompts sign-in before entering the shell.
+
+## Interactive shell
+
+Inside the shell:
+
+```text
+shipr> fix readme typo
+shipr> investigate race condition in retries
+shipr> /status
+shipr> /tasks
+shipr> /plan refactor retry flow
+shipr> /exit
+```
+
+Any plain text input is treated as a task and runs through the agentic loop with progress updates.
 
 ## Core commands
 
