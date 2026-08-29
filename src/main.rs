@@ -8,6 +8,19 @@ use shipr_smart_routing::{Budget, Quality, resolve_routing_policy, select_model}
 use std::fs;
 use std::path::PathBuf;
 
+pub(crate) const SHIP_BANNER: [&str; 10] = [
+    "                  ╭─────╮",
+    "            ╭─────┤ ▦ ▦ │",
+    "      ╭─────┤ ▦ ▦ ├─────┤╭─────╮",
+    "      │ ▦ ▦ ├─────┤ ▦ ▦ ││ ▦ ▦ │",
+    "      ╰─────┴─────┴─────┴┴─────╯",
+    "        ╲                           ╲___",
+    "  ≋≋≋    ╲___   S H I P R R   _______/►",
+    "≋≋≋≋≋≋≋≋≋≋╲_________________/≋≋≋≋≋≋≋≋≋≋",
+    "       ≋≋≋≋         ≋≋≋≋         ≋≋≋≋",
+    "          ship code. route smart. pay less.",
+];
+
 #[derive(Parser, Debug)]
 #[command(
     name = "shipr",
@@ -176,36 +189,15 @@ fn preview_branding() -> Result<()> {
 
 fn print_shiprr_banner() {
     println!();
-    println!(
-        "{}",
-        "             ┌────┬────┬────┐".truecolor(96, 165, 250)
-    );
-    println!(
-        "{}",
-        "             │ ▣  │ ▣  │ ▣  │".truecolor(96, 165, 250)
-    );
-    println!(
-        "{}",
-        "        ┌────┴────┴────┴────┴────┐".truecolor(59, 130, 246)
-    );
-    println!(
-        "{}",
-        "    ____│       S H I P R R       │____"
-            .bold()
-            .truecolor(147, 197, 253)
-    );
-    println!(
-        "{}",
-        " __/____└─────────────────────────┘____\\__".truecolor(59, 130, 246)
-    );
-    println!(
-        "{}",
-        " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~".truecolor(37, 99, 235)
-    );
-    println!(
-        "{}",
-        "       ship code. route smart. pay less.".truecolor(135, 145, 160)
-    );
+    for (index, line) in SHIP_BANNER.iter().enumerate() {
+        let color = match index {
+            0..=4 => (96, 165, 250),
+            5..=6 => (59, 130, 246),
+            7..=8 => (37, 99, 235),
+            _ => (135, 145, 160),
+        };
+        println!("{}", line.bold().truecolor(color.0, color.1, color.2));
+    }
     println!();
 }
 
