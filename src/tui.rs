@@ -1,4 +1,4 @@
-use crate::SHIP_BANNER;
+use crate::BRAND_LINES;
 use crate::agent::{AgentConfig, AgentEvent, run_agent};
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
@@ -148,7 +148,7 @@ impl App {
             "/exit" | "/quit" => self.should_quit = true,
             "/clear" => self.feed.clear(),
             "/help" => self.feed.push(FeedItem::Assistant(
-                "/clear  clear conversation\n/help   show commands\n/exit   leave Shiprr"
+                "/clear  clear conversation\n/help   show commands\n/exit   leave shipr"
                     .to_string(),
             )),
             _ => self
@@ -332,12 +332,9 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &App) {
 
 fn draw_header(frame: &mut ratatui::Frame<'_>, area: Rect) {
     let header = Paragraph::new(Line::from(vec![
-        Span::styled(" ▣▣▣ ", Style::default().fg(BLUE_DIM)),
-        Span::styled(
-            " shiprr ",
-            Style::default().fg(Color::Black).bg(BLUE).bold(),
-        ),
-        Span::styled("  minimal agentic coding CLI", Style::default().fg(MUTED)),
+        Span::styled(" ■ ■ ■ ", Style::default().fg(BLUE_DIM)),
+        Span::styled(" shipr ", Style::default().fg(Color::Black).bg(BLUE).bold()),
+        Span::styled("  cargo agent · underway", Style::default().fg(MUTED)),
     ]))
     .block(
         Block::default()
@@ -364,17 +361,12 @@ fn feed_lines(items: &[FeedItem]) -> Vec<Line<'static>> {
     for item in items {
         match item {
             FeedItem::Banner => {
-                for (index, line) in SHIP_BANNER.iter().enumerate() {
-                    let color = match index {
-                        0..=4 => Color::Rgb(96, 165, 250),
-                        5..=6 => Color::Rgb(59, 130, 246),
-                        7..=8 => Color::Rgb(37, 99, 235),
-                        _ => MUTED,
-                    };
-                    lines.push(Line::from(Span::styled(
-                        *line,
-                        Style::default().fg(color).bold(),
-                    )));
+                for line in BRAND_LINES {
+                    lines.push(Line::from(vec![
+                        Span::styled(line.icon, Style::default().fg(BLUE).bold()),
+                        Span::styled(line.wordmark, Style::default().fg(MUTED).bold()),
+                        Span::styled(line.accent, Style::default().fg(Color::White).bold()),
+                    ]));
                 }
                 lines.push(Line::default());
             }
@@ -473,7 +465,7 @@ fn draw_composer(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
         Block::default()
             .borders(Borders::ALL)
             .border_style(border_style)
-            .title(Span::styled(" Ask Shiprr ", Style::default().fg(MUTED))),
+            .title(Span::styled(" Ask shipr ", Style::default().fg(MUTED))),
     );
     frame.render_widget(composer, area);
 

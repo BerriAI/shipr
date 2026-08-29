@@ -2,7 +2,7 @@
 name = "shipr-cli"
 version = "0.1.0"
 edition = "2024"
-description = "A minimal coding harness with smart low-cost LiteLLM routing"
+description = "A minimal cargo agent with smart low-cost LiteLLM routing"
 license = "MIT"
 
 [[bin]]

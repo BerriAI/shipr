@@ -1,6 +1,6 @@
-# Shiprr (Rust prototype)
+# shipr
 
-Shiprr is a minimal coding harness with a smart routing layer designed to cut costs on top of LiteLLM Auto Router.
+shipr is a minimal cargo agent with a smart routing layer designed to cut costs on top of LiteLLM Auto Router.
 
 The visual identity uses a blue cargo ship and container motif. The workspace is
 dark, sparse, and terminal-native, inspired by the restraint of tools like Ghostty.
@@ -19,24 +19,25 @@ shipr
 ```
 
 `shipr` opens a full-screen agentic terminal UI. The conversation and work log
-scroll above a persistent composer at the bottom of the screen. Shiprr operates
+scroll above a persistent composer at the bottom of the screen. shipr operates
 on the directory where it was started.
 
 ## CLI flow (Claude/Codex-like)
 
 ```text
-┌ shiprr ───────────────────────────────────────────────┐
-│                  ╭─────╮                             │
-│      ╭─────╭─────┤ ▦ ▦ │╭─────╮                     │
-│      ╰─────┴─────┴─────┴┴─────╯                     │
-│  ≋≋≋   ╲___  S H I P R R  _______/►                 │
-│ ≋≋≋≋≋≋≋≋╲________________/≋≋≋≋≋≋≋≋                 │
+┌ shipr · cargo agent ──────────────────────────────────┐
+│        ████          ████ █  █ █ ████  ███          │
+│    ████ ████ ████    ████ ████ █ ████  ███          │
+│  ▀████████████████▀      █ █  █ █ █      █ █          │
+│    ▀████████████▀     ████ █  █ █ █      █  █         │
+│      ███  ███        ━━━  cargo agent · v0.1.0       │
+│       ■ ■ ■          ─────  underway                  │
 │ › fix retry typo in docs                              │
 │                                                      │
 │ ✦ Processing… Reading context                        │
 │                                                      │
 │ ● Response streams here token by token               │
-├ Ask Shiprr ──────────────────────────────────────────┤
+├ Ask shipr ───────────────────────────────────────────┤
 │ › type your next task                                │
 └──────────────────────────────────────────────────────┘
 ```
@@ -48,7 +49,7 @@ remain in the feed. Press `Esc` to cancel or `Ctrl+C` to exit.
 
 ## Coding tools
 
-Shiprr sends OpenAI-compatible tool definitions to LiteLLM and repeats the
+shipr sends OpenAI-compatible tool definitions to LiteLLM and repeats the
 model → tool → result loop until the task is complete. The minimal tool set is:
 
 - `list_files` — discover the workspace
@@ -77,7 +78,7 @@ that default. Optional `SHIPR_FAST_MODEL`, `SHIPR_BALANCED_MODEL`, and
 `SHIPR_HIGH_MODEL` environment variables map harness routing tiers to separate
 gateway model aliases.
 
-## Why Shiprr
+## Why shipr
 
 - Minimal by design: just an agentic loop
 - Harness-level smart routing chooses cheaper viable policy first

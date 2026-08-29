@@ -10,24 +10,65 @@ use shipr_smart_routing::{Budget, Quality, resolve_routing_policy, select_model}
 use std::fs;
 use std::path::PathBuf;
 
-pub(crate) const SHIP_BANNER: [&str; 10] = [
-    "                  ╭─────╮",
-    "            ╭─────┤ ▦ ▦ │",
-    "      ╭─────┤ ▦ ▦ ├─────┤╭─────╮",
-    "      │ ▦ ▦ ├─────┤ ▦ ▦ ││ ▦ ▦ │",
-    "      ╰─────┴─────┴─────┴┴─────╯",
-    "        ╲                           ╲___",
-    "  ≋≋≋    ╲___   S H I P R R   _______/►",
-    "≋≋≋≋≋≋≋≋≋≋╲_________________/≋≋≋≋≋≋≋≋≋≋",
-    "       ≋≋≋≋         ≋≋≋≋         ≋≋≋≋",
-    "          ship code. route smart. pay less.",
+pub(crate) struct BrandLine {
+    pub icon: &'static str,
+    pub wordmark: &'static str,
+    pub accent: &'static str,
+}
+
+pub(crate) const BRAND_LINES: [BrandLine; 9] = [
+    BrandLine {
+        icon: "        ████         ",
+        wordmark: "████ █  █ █ ████  ",
+        accent: "███",
+    },
+    BrandLine {
+        icon: "        ████         ",
+        wordmark: "█    █  █ █ █   █ ",
+        accent: "█  █",
+    },
+    BrandLine {
+        icon: "    ████ ████ ████   ",
+        wordmark: "████ ████ █ ████  ",
+        accent: "███",
+    },
+    BrandLine {
+        icon: "    ████ ████ ████   ",
+        wordmark: "   █ █  █ █ █     ",
+        accent: "█ █",
+    },
+    BrandLine {
+        icon: "  ▀████████████████▀  ",
+        wordmark: "████ █  █ █ █     ",
+        accent: "█  █",
+    },
+    BrandLine {
+        icon: "    ▀████████████▀    ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "      ███  ███       ",
+        wordmark: "━━━  cargo agent · v0.1.0",
+        accent: "",
+    },
+    BrandLine {
+        icon: "                     ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "       ■ ■ ■         ",
+        wordmark: "─────  underway",
+        accent: "",
+    },
 ];
 
 #[derive(Parser, Debug)]
 #[command(
     name = "shipr",
     version,
-    about = "Shiprr — minimal coding harness with smart low-cost routing",
+    about = "shipr — minimal cargo agent with smart low-cost routing",
     long_about = "A lightweight CLI harness for coding tasks.\nRuns a focused plan -> work -> verify loop and uses harness-level smart routing to reduce cost."
 )]
 struct Cli {
@@ -55,7 +96,7 @@ enum Commands {
 }
 
 #[derive(Debug)]
-struct ShiprrConfig {
+struct ShiprConfig {
     base_url: String,
     api_key: String,
     model: String,
@@ -88,7 +129,7 @@ fn launch_tui() -> Result<()> {
     })
 }
 
-fn ensure_config() -> Result<ShiprrConfig> {
+fn ensure_config() -> Result<ShiprConfig> {
     if let Some(config) = load_config()? {
         return Ok(config);
     }
@@ -98,7 +139,7 @@ fn ensure_config() -> Result<ShiprrConfig> {
 }
 
 fn start_setup(force_login: bool) -> Result<()> {
-    print_shiprr_banner();
+    print_shipr_banner();
 
     if !force_login && let Some(config) = load_config()? {
         println!(
@@ -140,7 +181,7 @@ fn start_setup(force_login: bool) -> Result<()> {
         .interact_text()
         .context("failed to read model input")?;
 
-    let config = ShiprrConfig {
+    let config = ShiprConfig {
         base_url,
         api_key,
         model,
@@ -195,8 +236,8 @@ fn show_plan(task: &str) -> Result<()> {
 }
 
 fn preview_branding() -> Result<()> {
-    print_shiprr_banner();
-    println!("{}", "minimal agentic coding CLI".bold().bright_white());
+    print_shipr_banner();
+    println!("{}", "minimal cargo agent".bold().bright_white());
     println!(
         "{} persistent IDE-like terminal surface",
         "•".truecolor(96, 165, 250)
@@ -212,16 +253,15 @@ fn preview_branding() -> Result<()> {
     Ok(())
 }
 
-fn print_shiprr_banner() {
+fn print_shipr_banner() {
     println!();
-    for (index, line) in SHIP_BANNER.iter().enumerate() {
-        let color = match index {
-            0..=4 => (96, 165, 250),
-            5..=6 => (59, 130, 246),
-            7..=8 => (37, 99, 235),
-            _ => (135, 145, 160),
-        };
-        println!("{}", line.bold().truecolor(color.0, color.1, color.2));
+    for line in BRAND_LINES {
+        println!(
+            "{}{}{}",
+            line.icon.bold().truecolor(45, 153, 232),
+            line.wordmark.bold().truecolor(102, 113, 128),
+            line.accent.bold().bright_white()
+        );
     }
     println!();
 }
@@ -231,7 +271,7 @@ fn config_path() -> PathBuf {
     PathBuf::from(home).join(".shipr").join("config.toml")
 }
 
-fn load_config() -> Result<Option<ShiprrConfig>> {
+fn load_config() -> Result<Option<ShiprConfig>> {
     let path = config_path();
     if !path.exists() {
         return Ok(None);
@@ -262,7 +302,7 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
     let (Some(base_url), Some(api_key)) = (base_url, api_key) else {
         return Ok(None);
     };
-    let config = ShiprrConfig {
+    let config = ShiprConfig {
         base_url,
         api_key,
         model: std::env::var("SHIPR_MODEL")
@@ -274,7 +314,7 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
     Ok(Some(config))
 }
 
-fn validate_config(config: &ShiprrConfig) -> Result<()> {
+fn validate_config(config: &ShiprConfig) -> Result<()> {
     if config.base_url.trim().is_empty() {
         bail!("base URL cannot be empty");
     }
@@ -287,7 +327,7 @@ fn validate_config(config: &ShiprrConfig) -> Result<()> {
     Ok(())
 }
 
-fn save_config(config: &ShiprrConfig) -> Result<()> {
+fn save_config(config: &ShiprConfig) -> Result<()> {
     let path = config_path();
     let parent = path.parent().context("missing config parent directory")?;
     fs::create_dir_all(parent)
