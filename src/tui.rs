@@ -1,3 +1,4 @@
+use crate::SHIP_BANNER;
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
@@ -277,21 +278,19 @@ fn feed_lines(items: &[FeedItem]) -> Vec<Line<'static>> {
     for item in items {
         match item {
             FeedItem::Banner => {
-                for line in [
-                    "                 ┌──────┬──────┬──────┐",
-                    "                 │  ▣▣  │  ▣▣  │  ▣▣  │",
-                    "            ┌────┴──────┴──────┴──────┴────┐",
-                    "        ____│          S H I P R R          │____",
-                    "     __/____└──────────────────────────────┘____\\__",
-                    "     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
-                    "           ship code. route smart. pay less.",
-                    "",
-                ] {
+                for (index, line) in SHIP_BANNER.iter().enumerate() {
+                    let color = match index {
+                        0..=4 => Color::Rgb(96, 165, 250),
+                        5..=6 => Color::Rgb(59, 130, 246),
+                        7..=8 => Color::Rgb(37, 99, 235),
+                        _ => MUTED,
+                    };
                     lines.push(Line::from(Span::styled(
-                        line,
-                        Style::default().fg(BLUE_DIM).bold(),
+                        *line,
+                        Style::default().fg(color).bold(),
                     )));
                 }
+                lines.push(Line::default());
             }
             FeedItem::User(text) => {
                 lines.push(Line::from(vec![
