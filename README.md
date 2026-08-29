@@ -26,12 +26,12 @@ on the directory where it was started.
 
 ```text
 ┌ shipr · cargo agent ──────────────────────────────────┐
-│        ████          ████ █  █ █ ████  ███          │
-│    ████ ████ ████    ████ ████ █ ████  ███          │
-│  ▀████████████████▀      █ █  █ █ █      █ █          │
-│    ▀████████████▀     ████ █  █ █ █      █  █         │
-│      ███  ███        ━━━  cargo agent · v0.1.0       │
-│       ■ ■ ■          ─────  underway                  │
+│       ■             s h i p r                         │
+│    ■  ■  ■          ━━━ cargo agent · v0.1.0         │
+│   ╲████████╱                                            │
+│    ╲██████╱                                             │
+│      ▀  ▀                                               │
+│      ■ ■ ■         ───── underway                     │
 │ › fix retry typo in docs                              │
 │                                                      │
 │ ✦ Processing… Reading context                        │

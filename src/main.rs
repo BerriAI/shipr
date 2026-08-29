@@ -16,49 +16,39 @@ pub(crate) struct BrandLine {
     pub accent: &'static str,
 }
 
-pub(crate) const BRAND_LINES: [BrandLine; 9] = [
+pub(crate) const BRAND_LINES: [BrandLine; 7] = [
     BrandLine {
-        icon: "        ████         ",
-        wordmark: "████ █  █ █ ████  ",
-        accent: "███",
+        icon: "       ■            ",
+        wordmark: "s h i p ",
+        accent: "r",
     },
     BrandLine {
-        icon: "        ████         ",
-        wordmark: "█    █  █ █ █   █ ",
-        accent: "█  █",
-    },
-    BrandLine {
-        icon: "    ████ ████ ████   ",
-        wordmark: "████ ████ █ ████  ",
-        accent: "███",
-    },
-    BrandLine {
-        icon: "    ████ ████ ████   ",
-        wordmark: "   █ █  █ █ █     ",
-        accent: "█ █",
-    },
-    BrandLine {
-        icon: "  ▀████████████████▀  ",
-        wordmark: "████ █  █ █ █     ",
-        accent: "█  █",
-    },
-    BrandLine {
-        icon: "    ▀████████████▀    ",
-        wordmark: "",
-        accent: "",
-    },
-    BrandLine {
-        icon: "      ███  ███       ",
+        icon: "    ■  ■  ■         ",
         wordmark: "━━━  cargo agent · v0.1.0",
         accent: "",
     },
     BrandLine {
-        icon: "                     ",
+        icon: "   ╲████████╱       ",
         wordmark: "",
         accent: "",
     },
     BrandLine {
-        icon: "       ■ ■ ■         ",
+        icon: "    ╲██████╱        ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "      ▀  ▀          ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "                    ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "      ■ ■ ■         ",
         wordmark: "─────  underway",
         accent: "",
     },
