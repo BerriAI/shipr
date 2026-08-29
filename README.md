@@ -8,7 +8,7 @@ dark, sparse, and terminal-native, inspired by the restraint of tools like Ghost
 ## Install
 
 ```bash
-cd shiprr
+cd shipr
 ./scripts/install.sh
 ```
 
