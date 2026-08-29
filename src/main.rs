@@ -1,3 +1,5 @@
+mod agent;
+mod tools;
 mod tui;
 
 use anyhow::{Context, Result, bail};
@@ -8,24 +10,65 @@ use shipr_smart_routing::{Budget, Quality, resolve_routing_policy, select_model}
 use std::fs;
 use std::path::PathBuf;
 
-pub(crate) const SHIP_BANNER: [&str; 10] = [
-    "                  ╭─────╮",
-    "            ╭─────┤ ▦ ▦ │",
-    "      ╭─────┤ ▦ ▦ ├─────┤╭─────╮",
-    "      │ ▦ ▦ ├─────┤ ▦ ▦ ││ ▦ ▦ │",
-    "      ╰─────┴─────┴─────┴┴─────╯",
-    "        ╲                           ╲___",
-    "  ≋≋≋    ╲___   S H I P R R   _______/►",
-    "≋≋≋≋≋≋≋≋≋≋╲_________________/≋≋≋≋≋≋≋≋≋≋",
-    "       ≋≋≋≋         ≋≋≋≋         ≋≋≋≋",
-    "          ship code. route smart. pay less.",
+pub(crate) struct BrandLine {
+    pub icon: &'static str,
+    pub wordmark: &'static str,
+    pub accent: &'static str,
+}
+
+pub(crate) const BRAND_LINES: [BrandLine; 9] = [
+    BrandLine {
+        icon: "        ████         ",
+        wordmark: "████ █  █ █ ████  ",
+        accent: "███",
+    },
+    BrandLine {
+        icon: "        ████         ",
+        wordmark: "█    █  █ █ █   █ ",
+        accent: "█  █",
+    },
+    BrandLine {
+        icon: "    ████ ████ ████   ",
+        wordmark: "████ ████ █ ████  ",
+        accent: "███",
+    },
+    BrandLine {
+        icon: "    ████ ████ ████   ",
+        wordmark: "   █ █  █ █ █     ",
+        accent: "█ █",
+    },
+    BrandLine {
+        icon: "  ▀████████████████▀  ",
+        wordmark: "████ █  █ █ █     ",
+        accent: "█  █",
+    },
+    BrandLine {
+        icon: "    ▀████████████▀    ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "      ███  ███       ",
+        wordmark: "━━━  cargo agent · v0.1.0",
+        accent: "",
+    },
+    BrandLine {
+        icon: "                     ",
+        wordmark: "",
+        accent: "",
+    },
+    BrandLine {
+        icon: "       ■ ■ ■         ",
+        wordmark: "─────  underway",
+        accent: "",
+    },
 ];
 
 #[derive(Parser, Debug)]
 #[command(
     name = "shipr",
     version,
-    about = "Shiprr — minimal coding harness with smart low-cost routing",
+    about = "shipr — minimal cargo agent with smart low-cost routing",
     long_about = "A lightweight CLI harness for coding tasks.\nRuns a focused plan -> work -> verify loop and uses harness-level smart routing to reduce cost."
 )]
 struct Cli {
@@ -36,6 +79,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Start,
+    Login,
     Run {
         #[arg(help = "Coding task to execute")]
         task: String,
@@ -52,9 +96,10 @@ enum Commands {
 }
 
 #[derive(Debug)]
-struct ShiprrConfig {
+struct ShiprConfig {
     base_url: String,
     api_key: String,
+    model: String,
 }
 
 fn main() -> Result<()> {
@@ -62,7 +107,8 @@ fn main() -> Result<()> {
 
     match cli.command {
         None => launch_tui(),
-        Some(Commands::Start) => start_setup(),
+        Some(Commands::Start) => start_setup(false),
+        Some(Commands::Login) => start_setup(true),
         Some(Commands::Run {
             task,
             quality,
@@ -75,22 +121,27 @@ fn main() -> Result<()> {
 
 fn launch_tui() -> Result<()> {
     let config = ensure_config()?;
-    tui::run(config.base_url)
+    tui::run(tui::TuiConfig {
+        base_url: config.base_url,
+        api_key: config.api_key,
+        model: config.model,
+        workspace: std::env::current_dir().context("failed to open current workspace")?,
+    })
 }
 
-fn ensure_config() -> Result<ShiprrConfig> {
+fn ensure_config() -> Result<ShiprConfig> {
     if let Some(config) = load_config()? {
         return Ok(config);
     }
 
-    start_setup()?;
+    start_setup(false)?;
     load_config()?.context("failed to load config after setup")
 }
 
-fn start_setup() -> Result<()> {
-    print_shiprr_banner();
+fn start_setup(force_login: bool) -> Result<()> {
+    print_shipr_banner();
 
-    if let Some(config) = load_config()? {
+    if !force_login && let Some(config) = load_config()? {
         println!(
             "{} {}",
             "Already logged in:".truecolor(147, 197, 253),
@@ -100,6 +151,11 @@ fn start_setup() -> Result<()> {
             "{} {}",
             "config:".truecolor(147, 197, 253),
             config_path().display().to_string().bright_white()
+        );
+        println!(
+            "{} {}",
+            "model:".truecolor(147, 197, 253),
+            config.model.bright_white()
         );
         return Ok(());
     }
@@ -119,13 +175,23 @@ fn start_setup() -> Result<()> {
         .interact()
         .context("failed to read API key input")?;
 
-    let config = ShiprrConfig { base_url, api_key };
+    let model: String = Input::new()
+        .with_prompt("LiteLLM model or auto-router alias")
+        .default("auto_router1".to_string())
+        .interact_text()
+        .context("failed to read model input")?;
+
+    let config = ShiprConfig {
+        base_url,
+        api_key,
+        model,
+    };
     validate_config(&config)?;
     save_config(&config)?;
 
     println!(
         "{}",
-        "Login successful. Starting Shiprr…".truecolor(147, 197, 253)
+        "Login saved. Run shipr to start coding.".truecolor(147, 197, 253)
     );
     Ok(())
 }
@@ -170,8 +236,8 @@ fn show_plan(task: &str) -> Result<()> {
 }
 
 fn preview_branding() -> Result<()> {
-    print_shiprr_banner();
-    println!("{}", "minimal agentic coding CLI".bold().bright_white());
+    print_shipr_banner();
+    println!("{}", "minimal cargo agent".bold().bright_white());
     println!(
         "{} persistent IDE-like terminal surface",
         "•".truecolor(96, 165, 250)
@@ -187,16 +253,15 @@ fn preview_branding() -> Result<()> {
     Ok(())
 }
 
-fn print_shiprr_banner() {
+fn print_shipr_banner() {
     println!();
-    for (index, line) in SHIP_BANNER.iter().enumerate() {
-        let color = match index {
-            0..=4 => (96, 165, 250),
-            5..=6 => (59, 130, 246),
-            7..=8 => (37, 99, 235),
-            _ => (135, 145, 160),
-        };
-        println!("{}", line.bold().truecolor(color.0, color.1, color.2));
+    for line in BRAND_LINES {
+        println!(
+            "{}{}{}",
+            line.icon.bold().truecolor(45, 153, 232),
+            line.wordmark.bold().truecolor(102, 113, 128),
+            line.accent.bold().bright_white()
+        );
     }
     println!();
 }
@@ -206,7 +271,7 @@ fn config_path() -> PathBuf {
     PathBuf::from(home).join(".shipr").join("config.toml")
 }
 
-fn load_config() -> Result<Option<ShiprrConfig>> {
+fn load_config() -> Result<Option<ShiprConfig>> {
     let path = config_path();
     if !path.exists() {
         return Ok(None);
@@ -216,6 +281,7 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
         .with_context(|| format!("failed to read config at {}", path.display()))?;
     let mut base_url = None;
     let mut api_key = None;
+    let mut model = None;
 
     for raw_line in content.lines() {
         let line = raw_line.trim();
@@ -227,6 +293,7 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
             match key.trim() {
                 "base_url" => base_url = Some(cleaned),
                 "api_key" => api_key = Some(cleaned),
+                "model" => model = Some(cleaned),
                 _ => {}
             }
         }
@@ -235,30 +302,40 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
     let (Some(base_url), Some(api_key)) = (base_url, api_key) else {
         return Ok(None);
     };
-    let config = ShiprrConfig { base_url, api_key };
+    let config = ShiprConfig {
+        base_url,
+        api_key,
+        model: std::env::var("SHIPR_MODEL")
+            .ok()
+            .or(model)
+            .unwrap_or_else(|| "auto_router1".to_string()),
+    };
     validate_config(&config)?;
     Ok(Some(config))
 }
 
-fn validate_config(config: &ShiprrConfig) -> Result<()> {
+fn validate_config(config: &ShiprConfig) -> Result<()> {
     if config.base_url.trim().is_empty() {
         bail!("base URL cannot be empty");
     }
     if config.api_key.trim().is_empty() {
         bail!("API key cannot be empty");
     }
+    if config.model.trim().is_empty() {
+        bail!("model cannot be empty");
+    }
     Ok(())
 }
 
-fn save_config(config: &ShiprrConfig) -> Result<()> {
+fn save_config(config: &ShiprConfig) -> Result<()> {
     let path = config_path();
     let parent = path.parent().context("missing config parent directory")?;
     fs::create_dir_all(parent)
         .with_context(|| format!("failed to create config directory {}", parent.display()))?;
 
     let content = format!(
-        "base_url = \"{}\"\napi_key = \"{}\"\n",
-        config.base_url, config.api_key
+        "base_url = \"{}\"\napi_key = \"{}\"\nmodel = \"{}\"\n",
+        config.base_url, config.api_key, config.model
     );
     fs::write(&path, content)
         .with_context(|| format!("failed to write config file {}", path.display()))?;
