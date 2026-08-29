@@ -1,11 +1,11 @@
-# Shipr (Rust prototype)
+# Shiprr (Rust prototype)
 
-Shipr is a minimal coding harness with a smart routing layer designed to cut costs on top of LiteLLM Auto Router.
+Shiprr is a minimal coding harness with a smart routing layer designed to cut costs on top of LiteLLM Auto Router.
 
 ## Install
 
 ```bash
-cd shippr
+cd shiprr
 ./scripts/install.sh
 ```
 
@@ -40,7 +40,7 @@ shipr
 - `/login`
 - `/exit`
 
-## Why Shipr
+## Why Shiprr
 
 - Minimal by design: just an agentic loop
 - Harness-level smart routing chooses cheaper viable policy first
