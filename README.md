@@ -15,39 +15,36 @@ cd shippr
 shipr
 ```
 
-`shipr` with no args starts an agentic `shipr>` shell.
-On first run, it prompts sign-in before entering the shell.
+`shipr` opens an agentic CLI prompt where plain text is treated as a task.
 
-## Interactive shell
-
-Inside the shell:
+## CLI flow (Claude/Codex-like)
 
 ```text
-shipr> fix readme typo
-shipr> investigate race condition in retries
-shipr> /status
-shipr> /tasks
-shipr> /plan refactor retry flow
-shipr> /exit
+❯ shipr
+❯ fix retry typo in docs
+... thought block
+... progress block
+... recap
+❯ /status
+❯ /tasks
+❯ /exit
 ```
 
-Any plain text input is treated as a task and runs through the agentic loop with progress updates.
+## Commands
 
-## Core commands
-
-```bash
-shipr start
-shipr preview
-shipr run "fix readme typo"
-shipr run "investigate race condition in retries"
-shipr run "implement streaming retry fallback" --quality high --budget cheap
-```
+- `/help`
+- `/status`
+- `/tasks`
+- `/preview`
+- `/plan <task>`
+- `/login`
+- `/exit`
 
 ## Why Shipr
 
 - Minimal by design: just an agentic loop
 - Harness-level smart routing chooses cheaper viable policy first
-- Manual overrides stay available with `--quality` and `--budget`
+- Manual overrides available in direct run mode (`shipr run ... --quality ... --budget ...`)
 - Devtool aesthetic: dark, compact, low-noise output
 
 ## Architecture

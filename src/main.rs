@@ -81,22 +81,16 @@ fn main() -> Result<()> {
 }
 
 fn shell_mode() -> Result<()> {
-    print_header("shipr", "agentic cli");
-
     let config = ensure_config_for_shell()?;
     let mut session = ShiprSession {
         next_task_number: 1,
         tasks: Vec::new(),
     };
 
-    print_kv("mode", "task-driven");
-    print_kv(
-        "hint",
-        "type a task directly. commands: /help /status /tasks /exit",
-    );
+    print_shell_welcome();
 
     loop {
-        print!("{}", "shipr> ".truecolor(246, 178, 137));
+        print!("{}", "❯ ".truecolor(246, 178, 137));
         io::stdout().flush().context("failed to flush prompt")?;
 
         let mut input = String::new();
@@ -110,55 +104,80 @@ fn shell_mode() -> Result<()> {
         }
 
         if prompt.starts_with('/') {
-            match prompt {
-                "/exit" | "/quit" => {
-                    print_kv("bye", "see you next ship");
-                    break;
-                }
-                "/help" => {
-                    print_section("commands");
-                    println!(
-                        "  {} type any text to run an agentic task",
-                        "•".truecolor(246, 178, 137)
-                    );
-                    println!("  {} /status", "•".truecolor(246, 178, 137));
-                    println!("  {} /tasks", "•".truecolor(246, 178, 137));
-                    println!("  {} /preview", "•".truecolor(246, 178, 137));
-                    println!("  {} /login", "•".truecolor(246, 178, 137));
-                    println!("  {} /plan <task>", "•".truecolor(246, 178, 137));
-                    println!("  {} /exit", "•".truecolor(246, 178, 137));
-                }
-                "/status" => print_status(&session),
-                "/tasks" => print_tasks(&session),
-                "/preview" => {
-                    if let Err(error) = preview_branding() {
-                        print_kv("error", &error.to_string());
-                    }
-                }
-                "/login" => {
-                    if let Err(error) = start_setup() {
-                        print_kv("error", &error.to_string());
-                    }
-                }
-                _ => {
-                    if let Some(task) = prompt.strip_prefix("/plan ") {
-                        if let Err(error) = show_plan(task) {
-                            print_kv("error", &error.to_string());
-                        }
-                    } else {
-                        print_kv("error", "unknown command. use /help");
-                    }
-                }
+            if handle_shell_command(prompt, &mut session)? {
+                break;
             }
             continue;
         }
 
-        if let Err(error) = run_agentic_task(prompt, &config, &mut session) {
-            print_kv("error", &error.to_string());
+        if let Err(error) = run_agentic_task(prompt, &config, &mut session, None, None) {
+            println!(
+                "{} {}",
+                "error:".red().bold(),
+                error.to_string().bright_white()
+            );
         }
     }
 
     Ok(())
+}
+
+fn handle_shell_command(command: &str, session: &mut ShiprSession) -> Result<bool> {
+    match command {
+        "/exit" | "/quit" => {
+            println!("{}", "bye.".truecolor(148, 163, 184));
+            Ok(true)
+        }
+        "/help" => {
+            println!();
+            println!("{}", "Commands".bold().bright_white());
+            println!("  {} /help", "•".truecolor(246, 178, 137));
+            println!("  {} /status", "•".truecolor(246, 178, 137));
+            println!("  {} /tasks", "•".truecolor(246, 178, 137));
+            println!("  {} /preview", "•".truecolor(246, 178, 137));
+            println!("  {} /plan <task>", "•".truecolor(246, 178, 137));
+            println!("  {} /login", "•".truecolor(246, 178, 137));
+            println!("  {} /exit", "•".truecolor(246, 178, 137));
+            Ok(false)
+        }
+        "/status" => {
+            print_status(session);
+            Ok(false)
+        }
+        "/tasks" => {
+            print_tasks(session);
+            Ok(false)
+        }
+        "/preview" => {
+            preview_branding()?;
+            Ok(false)
+        }
+        "/login" => {
+            start_setup()?;
+            Ok(false)
+        }
+        _ => {
+            if let Some(task) = command.strip_prefix("/plan ") {
+                show_plan(task)?;
+            } else {
+                println!("{}", "Unknown command. Use /help.".truecolor(148, 163, 184));
+            }
+            Ok(false)
+        }
+    }
+}
+
+fn print_shell_welcome() {
+    println!();
+    println!(
+        "{} {}",
+        "shipr".bold().bright_white(),
+        format!("v{}", env!("CARGO_PKG_VERSION")).truecolor(148, 163, 184)
+    );
+    println!(
+        "{}",
+        "minimal agentic coding cli — type a task, or /help".truecolor(148, 163, 184)
+    );
 }
 
 fn ensure_config_for_shell() -> Result<ShiprConfig> {
@@ -166,7 +185,10 @@ fn ensure_config_for_shell() -> Result<ShiprConfig> {
         return Ok(config);
     }
 
-    print_kv("login", "first run detected");
+    println!(
+        "{}",
+        "No login found. Starting setup...".truecolor(148, 163, 184)
+    );
     start_setup()?;
 
     let Some(config) = load_config()? else {
@@ -176,40 +198,51 @@ fn ensure_config_for_shell() -> Result<ShiprConfig> {
     Ok(config)
 }
 
-fn run_agentic_task(task: &str, config: &ShiprConfig, session: &mut ShiprSession) -> Result<()> {
+fn run_agentic_task(
+    task: &str,
+    config: &ShiprConfig,
+    session: &mut ShiprSession,
+    quality_override: Option<Quality>,
+    budget_override: Option<Budget>,
+) -> Result<()> {
     let task_id = format!("tsk-{:04}", session.next_task_number);
     session.next_task_number += 1;
 
     let started = Instant::now();
-    let routing = resolve_routing_policy(task, None, None);
+    let routing = resolve_routing_policy(task, quality_override, budget_override);
     let policy = routing.policy;
     let model = select_model(&policy);
 
-    print_header("shipr", "task");
-    print_kv("id", &task_id);
-    print_kv("task", task);
-    print_kv("litellm", &config.base_url);
-    print_kv(
-        "policy",
-        &format!(
-            "quality={} budget={}",
-            format_quality(policy.quality),
-            format_budget(policy.budget)
-        ),
+    println!();
+    println!(
+        "{} {} {}",
+        "●".truecolor(246, 178, 137),
+        "Task".bold().bright_white(),
+        task_id.truecolor(148, 163, 184)
     );
-    print_kv(
-        "route",
-        &format!(
-            "{} ({}, est {})",
-            model.name, model.rationale, model.estimated_cost
-        ),
+    println!("{}", task.bright_white());
+
+    println!();
+    println!(
+        "{} {}",
+        "Thought for".truecolor(148, 163, 184),
+        "2s".truecolor(148, 163, 184)
     );
-    print_kv(
-        "routing",
-        &format!("{} ({})", routing.mode, routing.task_kind),
+    println!(
+        "{} Analyzing task scope and complexity.",
+        "•".truecolor(246, 178, 137)
+    );
+    println!(
+        "{} Selecting cheapest viable routing policy.",
+        "•".truecolor(246, 178, 137)
+    );
+    println!(
+        "{} Running minimal loop: plan → exec → verify.",
+        "•".truecolor(246, 178, 137)
     );
 
-    print_section("progress");
+    println!();
+    println!("{}", "progress".bold().bright_white());
     for (progress, phase, detail) in [
         (10, "QUEUED", "task accepted"),
         (30, "PLAN", "building execution plan"),
@@ -217,12 +250,67 @@ fn run_agentic_task(task: &str, config: &ShiprConfig, session: &mut ShiprSession
         (85, "VERIFY", "running checks"),
         (100, "DONE", "finalizing response"),
     ] {
-        print_progress(progress, phase, detail);
-        thread::sleep(Duration::from_millis(120));
+        println!(
+            "  {} {:>3}% {:<7} {}",
+            "•".truecolor(246, 178, 137),
+            progress.to_string().bright_white(),
+            phase.bold().bright_white(),
+            detail.truecolor(203, 213, 225)
+        );
+        thread::sleep(Duration::from_millis(100));
     }
 
     let elapsed_ms = started.elapsed().as_millis();
-    print_kv("status", &format!("completed in {elapsed_ms}ms"));
+    println!();
+    println!(
+        "{} {}",
+        "route".truecolor(148, 163, 184),
+        format!(
+            "{} ({}; est {})",
+            model.name, model.rationale, model.estimated_cost
+        )
+        .bright_white()
+    );
+    println!(
+        "{} {}",
+        "policy".truecolor(148, 163, 184),
+        format!(
+            "quality={} budget={}",
+            format_quality(policy.quality),
+            format_budget(policy.budget)
+        )
+        .bright_white()
+    );
+    println!(
+        "{} {}",
+        "routing".truecolor(148, 163, 184),
+        format!("{} ({})", routing.mode, routing.task_kind).bright_white()
+    );
+    println!(
+        "{} {}",
+        "litellm".truecolor(148, 163, 184),
+        config.base_url.bright_white()
+    );
+
+    println!();
+    println!(
+        "{} completed in {}ms",
+        "status".truecolor(148, 163, 184),
+        elapsed_ms
+    );
+    println!(
+        "{} {}",
+        "recap:".truecolor(148, 163, 184),
+        format!(
+            "Task '{}' routed to {} with {} / {} for cost-aware execution.",
+            task,
+            model.name,
+            format_quality(policy.quality),
+            format_budget(policy.budget)
+        )
+        .italic()
+        .truecolor(148, 163, 184)
+    );
 
     session.tasks.push(TaskRecord {
         id: task_id,
@@ -238,62 +326,23 @@ fn run_agentic_task(task: &str, config: &ShiprConfig, session: &mut ShiprSession
     Ok(())
 }
 
-fn print_status(session: &ShiprSession) {
-    print_section("status");
-    if let Some(task) = session.tasks.last() {
-        print_kv("task", &task.id);
-        print_kv("state", task.status);
-        print_kv("phase", task.phase);
-        print_kv("progress", &format!("{}%", task.progress));
-        print_kv("model", task.model);
-        print_kv("cost", task.estimated_cost);
-    } else {
-        print_kv("state", "idle (no tasks yet)");
-    }
-}
-
-fn print_tasks(session: &ShiprSession) {
-    print_section("recent tasks");
-    if session.tasks.is_empty() {
-        print_kv("tasks", "none yet");
-        return;
-    }
-
-    for task in session.tasks.iter().rev().take(5) {
-        println!(
-            "  {} {} {} {}",
-            "•".truecolor(246, 178, 137),
-            task.id.truecolor(226, 232, 240),
-            format!("{}ms", task.elapsed_ms).truecolor(148, 163, 184),
-            task.prompt.truecolor(203, 213, 225)
-        );
-    }
-}
-
-fn print_progress(progress: u8, phase: &str, detail: &str) {
-    println!(
-        "  {} {:>3}% {:<7} {}",
-        "•".truecolor(246, 178, 137),
-        progress.to_string().truecolor(226, 232, 240),
-        phase.bold().bright_white(),
-        detail.truecolor(203, 213, 225)
-    );
-}
-
 fn start_setup() -> Result<()> {
-    print_header("shipr", "setup");
-
     if let Some(config) = load_config()? {
         println!(
-            "{} already signed in to {}",
-            "✓".bright_green(),
+            "{} {}",
+            "Already logged in:".truecolor(148, 163, 184),
             config.base_url.bright_white()
         );
-        print_kv("config", &config_path().display().to_string());
+        println!(
+            "{} {}",
+            "config:".truecolor(148, 163, 184),
+            config_path().display().to_string().bright_white()
+        );
         return Ok(());
     }
 
-    print_section("login");
+    println!();
+    println!("{}", "Login to LiteLLM".bold().bright_white());
 
     let base_url: String = Input::new()
         .with_prompt("LiteLLM base URL")
@@ -311,70 +360,50 @@ fn start_setup() -> Result<()> {
     validate_config(&config)?;
     save_config(&config)?;
 
-    println!("{} signed in and saved config", "✓".bright_green());
-    print_kv("next", "shipr");
+    println!("{}", "Login successful.".truecolor(148, 163, 184));
+    println!(
+        "{}",
+        "Run `shipr` to start the CLI.".truecolor(148, 163, 184)
+    );
 
     Ok(())
 }
 
 fn preview_branding() -> Result<()> {
-    print_header("shipr", "minimal harness");
-
-    print_section("pitch");
-    println!("  {} only the agentic loop", "•".truecolor(246, 178, 137));
+    println!();
+    println!("{}", "shipr — minimal harness".bold().bright_white());
+    println!("{} only the agentic loop", "•".truecolor(246, 178, 137));
     println!(
-        "  {} smart routing at harness level",
+        "{} smart routing at harness level",
         "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} tuned for lower cost than heavy coding agents",
+        "{} tuned for lower cost than heavy coding agents",
         "•".truecolor(246, 178, 137)
     );
 
-    print_section("theme");
-    println!(
-        "  {} dark terminal, low-noise layout",
-        "•".truecolor(246, 178, 137)
-    );
-    println!(
-        "  {} single warm accent, compact typography",
-        "•".truecolor(246, 178, 137)
-    );
-
-    print_architecture_diagram();
-    print_flow_diagram();
-
-    println!(
-        "\n{} {}",
-        "try".bold().bright_white(),
-        "shipr -> type your task at prompt".truecolor(148, 163, 184)
-    );
+    println!();
+    println!("{}", "architecture".bold().bright_white());
+    println!("  developer");
+    println!("    └─ shipr");
+    println!("       └─ agentic loop");
+    println!("          └─ smart routing crate");
+    println!("             └─ litellm auto router");
 
     Ok(())
 }
 
 fn show_plan(task: &str) -> Result<()> {
-    print_header("shipr", "plan");
-    print_kv("task", task);
-
-    print_section("execution plan");
+    println!();
     println!(
-        "  {} understand task and repo context",
-        "1.".truecolor(246, 178, 137)
+        "{} {}",
+        "plan:".truecolor(148, 163, 184),
+        task.bright_white()
     );
-    println!(
-        "  {} smart-route by complexity and cost policy",
-        "2.".truecolor(246, 178, 137)
-    );
-    println!(
-        "  {} apply focused code changes",
-        "3.".truecolor(246, 178, 137)
-    );
-    println!(
-        "  {} verify output and summarize",
-        "4.".truecolor(246, 178, 137)
-    );
-
+    println!("  1. understand task and repo context");
+    println!("  2. smart-route by complexity and cost policy");
+    println!("  3. apply focused code changes");
+    println!("  4. verify output and summarize");
     Ok(())
 }
 
@@ -391,15 +420,46 @@ fn run_task(
         next_task_number: 1,
         tasks: Vec::new(),
     };
-    let task_label = if quality_override.is_none() && budget_override.is_none() {
-        task
+    run_agentic_task(
+        &task,
+        &config,
+        &mut session,
+        quality_override,
+        budget_override,
+    )
+}
+
+fn print_status(session: &ShiprSession) {
+    println!();
+    println!("{}", "status".bold().bright_white());
+    if let Some(task) = session.tasks.last() {
+        println!("  task     {}", task.id.bright_white());
+        println!("  state    {}", task.status.bright_white());
+        println!("  phase    {}", task.phase.bright_white());
+        println!("  progress {}%", task.progress);
+        println!("  model    {}", task.model.bright_white());
+        println!("  cost     {}", task.estimated_cost.bright_white());
     } else {
-        format!(
-            "{} (overrides: quality={:?} budget={:?})",
-            task, quality_override, budget_override
-        )
-    };
-    run_agentic_task(&task_label, &config, &mut session)
+        println!("  idle (no tasks yet)");
+    }
+}
+
+fn print_tasks(session: &ShiprSession) {
+    println!();
+    println!("{}", "recent tasks".bold().bright_white());
+    if session.tasks.is_empty() {
+        println!("  none yet");
+        return;
+    }
+
+    for task in session.tasks.iter().rev().take(8) {
+        println!(
+            "  {} {}ms {}",
+            task.id.bright_white(),
+            task.elapsed_ms,
+            task.prompt.truecolor(203, 213, 225)
+        );
+    }
 }
 
 fn config_path() -> PathBuf {
@@ -482,59 +542,6 @@ fn save_config(config: &ShiprConfig) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn print_header(title: &str, subtitle: &str) {
-    println!();
-    println!(
-        "{}",
-        "──────────────────────────────────────────────────────────────".truecolor(51, 65, 85)
-    );
-    println!(
-        "{}  {}  {}",
-        "◉".truecolor(246, 178, 137),
-        title.bold().bright_white(),
-        subtitle.truecolor(148, 163, 184)
-    );
-    println!(
-        "{}",
-        "──────────────────────────────────────────────────────────────".truecolor(51, 65, 85)
-    );
-}
-
-fn print_kv(key: &str, value: &str) {
-    println!(
-        "{} {}",
-        format!("{key:>8}").truecolor(148, 163, 184),
-        value.truecolor(226, 232, 240)
-    );
-}
-
-fn print_section(name: &str) {
-    println!();
-    println!(
-        "{} {}",
-        "▍".truecolor(246, 178, 137),
-        name.bold().truecolor(226, 232, 240)
-    );
-}
-
-fn print_architecture_diagram() {
-    print_section("architecture");
-    println!("  developer");
-    println!("    └─ shipr");
-    println!("       └─ agentic loop");
-    println!("          └─ smart routing crate");
-    println!("             └─ litellm auto router");
-}
-
-fn print_flow_diagram() {
-    print_section("cost flow");
-    println!("  task intent");
-    println!("    └─ infer complexity");
-    println!("       └─ choose quality and budget");
-    println!("          └─ pick cheapest viable model");
-    println!("             └─ execute loop and return patch");
 }
 
 fn format_quality(quality: Quality) -> &'static str {
