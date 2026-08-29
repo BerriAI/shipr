@@ -1,4 +1,5 @@
 use crate::SHIP_BANNER;
+use crate::agent::{AgentConfig, AgentEvent, run_agent};
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::execute;
@@ -13,6 +14,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Padding, Paragraph, Wrap};
 use shipr_smart_routing::{resolve_routing_policy, select_model};
 use std::io::{self, Stdout};
+use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -28,35 +30,61 @@ const BORDER: Color = Color::Rgb(72, 78, 90);
 enum FeedItem {
     Banner,
     User(String),
+    Tool {
+        name: String,
+        summary: String,
+        success: bool,
+    },
     Assistant(String),
     Meta(String),
 }
 
-#[derive(Debug, Clone, Copy)]
-enum ActivityStage {
-    Routing,
-    Inspecting,
-    Planning,
-    Responding,
-}
-
-impl ActivityStage {
-    fn description(self) -> &'static str {
-        match self {
-            Self::Routing => "Choosing the cheapest capable model",
-            Self::Inspecting => "Reading context",
-            Self::Planning => "Planning the response",
-            Self::Responding => "Writing the response",
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct TuiConfig {
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
+    pub workspace: PathBuf,
 }
 
 #[derive(Debug)]
 enum WorkerEvent {
-    Progress { task_id: u64, stage: ActivityStage },
-    ResponseStarted { task_id: u64 },
-    ResponseDelta { task_id: u64, delta: char },
-    Done { task_id: u64, recap: String },
+    Activity {
+        task_id: u64,
+        description: String,
+    },
+    ApprovalRequested {
+        task_id: u64,
+        description: String,
+        response: Sender<bool>,
+    },
+    ToolFinished {
+        task_id: u64,
+        name: String,
+        summary: String,
+        success: bool,
+    },
+    ResponseStarted {
+        task_id: u64,
+    },
+    ResponseDelta {
+        task_id: u64,
+        delta: String,
+    },
+    Done {
+        task_id: u64,
+        recap: String,
+    },
+    Failed {
+        task_id: u64,
+        error: String,
+    },
+}
+
+#[derive(Debug)]
+struct PendingApproval {
+    description: String,
+    response: Sender<bool>,
 }
 
 #[derive(Debug)]
@@ -64,16 +92,17 @@ struct App {
     input: String,
     feed: Vec<FeedItem>,
     processing: bool,
-    activity: Option<ActivityStage>,
+    activity: Option<String>,
+    pending_approval: Option<PendingApproval>,
     started_processing: Option<Instant>,
     active_task_id: Option<u64>,
     next_task_id: u64,
     should_quit: bool,
-    base_url: String,
+    config: TuiConfig,
 }
 
 impl App {
-    fn new(base_url: String) -> Self {
+    fn new(config: TuiConfig) -> Self {
         Self {
             input: String::new(),
             feed: vec![
@@ -82,11 +111,12 @@ impl App {
             ],
             processing: false,
             activity: None,
+            pending_approval: None,
             started_processing: None,
             active_task_id: None,
             next_task_id: 1,
             should_quit: false,
-            base_url,
+            config,
         }
     }
 
@@ -106,11 +136,11 @@ impl App {
         self.next_task_id += 1;
         self.active_task_id = Some(task_id);
         self.processing = true;
-        self.activity = Some(ActivityStage::Routing);
+        self.activity = Some("Choosing the cheapest capable route".to_string());
         self.started_processing = Some(Instant::now());
         self.feed.push(FeedItem::User(prompt.clone()));
 
-        spawn_task(task_id, prompt, self.base_url.clone(), sender.clone());
+        spawn_task(task_id, prompt, self.config.clone(), sender.clone());
     }
 
     fn handle_command(&mut self, command: &str) {
@@ -129,8 +159,33 @@ impl App {
 
     fn handle_worker_event(&mut self, event: WorkerEvent) {
         match event {
-            WorkerEvent::Progress { task_id, stage } if self.active_task_id == Some(task_id) => {
-                self.activity = Some(stage);
+            WorkerEvent::Activity {
+                task_id,
+                description,
+            } if self.active_task_id == Some(task_id) => {
+                self.activity = Some(description);
+            }
+            WorkerEvent::ApprovalRequested {
+                task_id,
+                description,
+                response,
+            } if self.active_task_id == Some(task_id) => {
+                self.pending_approval = Some(PendingApproval {
+                    description,
+                    response,
+                });
+            }
+            WorkerEvent::ToolFinished {
+                task_id,
+                name,
+                summary,
+                success,
+            } if self.active_task_id == Some(task_id) => {
+                self.feed.push(FeedItem::Tool {
+                    name,
+                    summary,
+                    success,
+                });
             }
             WorkerEvent::ResponseStarted { task_id } if self.active_task_id == Some(task_id) => {
                 self.feed.push(FeedItem::Assistant(String::new()));
@@ -139,13 +194,22 @@ impl App {
                 if self.active_task_id == Some(task_id) =>
             {
                 if let Some(FeedItem::Assistant(answer)) = self.feed.last_mut() {
-                    answer.push(delta);
+                    answer.push_str(&delta);
                 }
             }
             WorkerEvent::Done { task_id, recap } if self.active_task_id == Some(task_id) => {
                 self.feed.push(FeedItem::Meta(recap));
                 self.processing = false;
                 self.activity = None;
+                self.pending_approval = None;
+                self.started_processing = None;
+                self.active_task_id = None;
+            }
+            WorkerEvent::Failed { task_id, error } if self.active_task_id == Some(task_id) => {
+                self.feed.push(FeedItem::Meta(format!("error: {error}")));
+                self.processing = false;
+                self.activity = None;
+                self.pending_approval = None;
                 self.started_processing = None;
                 self.active_task_id = None;
             }
@@ -153,8 +217,20 @@ impl App {
         }
     }
 
+    fn resolve_approval(&mut self, approved: bool) {
+        if let Some(pending) = self.pending_approval.take() {
+            let _ = pending.response.send(approved);
+            self.activity = Some(if approved {
+                format!("Approved: {}", pending.description)
+            } else {
+                format!("Denied: {}", pending.description)
+            });
+        }
+    }
+
     fn cancel(&mut self) {
         if self.processing {
+            self.resolve_approval(false);
             self.processing = false;
             self.activity = None;
             self.started_processing = None;
@@ -165,14 +241,14 @@ impl App {
     }
 }
 
-pub fn run(base_url: String) -> Result<()> {
+pub fn run(config: TuiConfig) -> Result<()> {
     enable_raw_mode().context("failed to enable raw terminal mode")?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen).context("failed to enter terminal screen")?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("failed to create terminal UI")?;
 
-    let result = run_event_loop(&mut terminal, base_url);
+    let result = run_event_loop(&mut terminal, config);
 
     disable_raw_mode().context("failed to disable raw terminal mode")?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)
@@ -183,10 +259,10 @@ pub fn run(base_url: String) -> Result<()> {
 
 fn run_event_loop(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    base_url: String,
+    config: TuiConfig,
 ) -> Result<()> {
     let (sender, receiver) = mpsc::channel();
-    let mut app = App::new(base_url);
+    let mut app = App::new(config);
 
     while !app.should_quit {
         drain_worker_events(&receiver, &mut app);
@@ -210,7 +286,17 @@ fn drain_worker_events(receiver: &Receiver<WorkerEvent>, app: &mut App) {
 
 fn handle_key(key: KeyEvent, app: &mut App, sender: &Sender<WorkerEvent>) {
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+        app.resolve_approval(false);
         app.should_quit = true;
+        return;
+    }
+
+    if app.pending_approval.is_some() {
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Char('Y') => app.resolve_approval(true),
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => app.resolve_approval(false),
+            _ => {}
+        }
         return;
     }
 
@@ -299,6 +385,24 @@ fn feed_lines(items: &[FeedItem]) -> Vec<Line<'static>> {
                 ]));
                 lines.push(Line::default());
             }
+            FeedItem::Tool {
+                name,
+                summary,
+                success,
+            } => {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        if *success { "✓ " } else { "× " },
+                        Style::default().fg(if *success {
+                            BLUE_DIM
+                        } else {
+                            Color::Rgb(248, 113, 113)
+                        }),
+                    ),
+                    Span::styled(name.clone(), Style::default().fg(TEXT).bold()),
+                    Span::styled(format!("  {summary}"), Style::default().fg(MUTED)),
+                ]));
+            }
             FeedItem::Assistant(text) => {
                 lines.push(Line::default());
                 for (index, part) in text.lines().enumerate() {
@@ -331,10 +435,20 @@ fn draw_processing(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
         .map(|started| (started.elapsed().as_millis() / 120) as usize)
         .unwrap_or_default();
     let spinner = ["✦", "✧", "◆", "◇"][frame_index % 4];
-    let activity = app
-        .activity
-        .map(ActivityStage::description)
-        .unwrap_or("Working");
+    if let Some(pending) = &app.pending_approval {
+        let approval = Paragraph::new(Line::from(vec![
+            Span::styled(" ? ", Style::default().fg(BLUE).bold()),
+            Span::styled(
+                format!("Allow {}?", pending.description),
+                Style::default().fg(TEXT).bold(),
+            ),
+            Span::styled("   y allow  n deny", Style::default().fg(BLUE_DIM)),
+        ]));
+        frame.render_widget(approval, area);
+        return;
+    }
+
+    let activity = app.activity.as_deref().unwrap_or("Working");
     let processing = Paragraph::new(Line::from(vec![
         Span::styled(format!(" {spinner} "), Style::default().fg(BLUE).bold()),
         Span::styled("Processing…", Style::default().fg(BLUE_DIM).bold()),
@@ -390,78 +504,92 @@ fn draw_footer(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
     frame.render_widget(footer, area);
 }
 
-fn spawn_task(task_id: u64, prompt: String, base_url: String, sender: Sender<WorkerEvent>) {
+fn spawn_task(task_id: u64, prompt: String, config: TuiConfig, sender: Sender<WorkerEvent>) {
     thread::spawn(move || {
         let routing = resolve_routing_policy(&prompt, None, None);
-        let model = select_model(&routing.policy);
-        let stages = [
-            ActivityStage::Routing,
-            ActivityStage::Inspecting,
-            ActivityStage::Planning,
-        ];
+        let route = select_model(&routing.policy);
+        let model = routed_model(route.name, &config.model);
+        let agent_config = AgentConfig {
+            base_url: config.base_url,
+            api_key: config.api_key,
+            model,
+            route: route.name.to_string(),
+            workspace: config.workspace,
+        };
+        let result = run_agent(agent_config, prompt, |event| {
+            let event = match event {
+                AgentEvent::Activity(description) => WorkerEvent::Activity {
+                    task_id,
+                    description,
+                },
+                AgentEvent::ApprovalRequested {
+                    description,
+                    response,
+                } => WorkerEvent::ApprovalRequested {
+                    task_id,
+                    description,
+                    response,
+                },
+                AgentEvent::ToolFinished {
+                    name,
+                    summary,
+                    success,
+                } => WorkerEvent::ToolFinished {
+                    task_id,
+                    name,
+                    summary,
+                    success,
+                },
+                AgentEvent::ResponseStarted => WorkerEvent::ResponseStarted { task_id },
+                AgentEvent::ResponseDelta(delta) => WorkerEvent::ResponseDelta { task_id, delta },
+            };
+            sender.send(event).is_ok()
+        });
 
-        for stage in stages {
-            thread::sleep(Duration::from_millis(350));
-            if sender
-                .send(WorkerEvent::Progress { task_id, stage })
-                .is_err()
-            {
-                return;
+        match result {
+            Ok(summary) => {
+                let recap = format!(
+                    "routed {} → {} · workspace tools enabled",
+                    summary.route, summary.model
+                );
+                let _ = sender.send(WorkerEvent::Done { task_id, recap });
+            }
+            Err(error) => {
+                let _ = sender.send(WorkerEvent::Failed {
+                    task_id,
+                    error: format!("{error:#}"),
+                });
             }
         }
-
-        let answer = answer_for(&prompt, model.name);
-        if sender
-            .send(WorkerEvent::Progress {
-                task_id,
-                stage: ActivityStage::Responding,
-            })
-            .is_err()
-            || sender
-                .send(WorkerEvent::ResponseStarted { task_id })
-                .is_err()
-        {
-            return;
-        }
-
-        for delta in answer.chars() {
-            if sender
-                .send(WorkerEvent::ResponseDelta { task_id, delta })
-                .is_err()
-            {
-                return;
-            }
-            thread::sleep(Duration::from_millis(12));
-        }
-
-        let recap = format!(
-            "recap: routed via {} on {} · estimated tier {}",
-            model.name, base_url, model.estimated_cost
-        );
-        let _ = sender.send(WorkerEvent::Done { task_id, recap });
     });
 }
 
-fn answer_for(prompt: &str, model: &str) -> String {
-    let normalized = prompt.to_lowercase();
-    if normalized.contains("who are you") || normalized.contains("your name") {
-        return "I'm Shiprr, a minimal agentic coding CLI built on LiteLLM.\n\nI route each task to the cheapest capable model, then run a focused plan → work → verify loop."
-            .to_string();
-    }
-
-    format!(
-        "I processed the task with {model} and prepared the execution path.\n\nThe interactive work surface is active; the next implementation step is wiring these work events to real file, shell, and LiteLLM streaming tools."
-    )
+fn routed_model(route: &str, default_model: &str) -> String {
+    let variable = match route {
+        "fast-mini" => "SHIPR_FAST_MODEL",
+        "reasoning-pro" => "SHIPR_HIGH_MODEL",
+        _ => "SHIPR_BALANCED_MODEL",
+    };
+    std::env::var(variable).unwrap_or_else(|_| default_model.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn test_config() -> TuiConfig {
+        TuiConfig {
+            base_url: "http://localhost:4000".to_string(),
+            api_key: "test-key".to_string(),
+            model: "auto_router1".to_string(),
+            workspace: std::env::current_dir().expect("workspace"),
+        }
+    }
+
     #[test]
     fn submit_starts_task_and_clears_composer() {
         let (sender, _receiver) = mpsc::channel();
-        let mut app = App::new("http://localhost:4000".to_string());
+        let mut app = App::new(test_config());
         app.input = "fix the tests".to_string();
 
         app.submit(&sender);
@@ -473,7 +601,7 @@ mod tests {
 
     #[test]
     fn slash_exit_closes_the_app() {
-        let mut app = App::new("http://localhost:4000".to_string());
+        let mut app = App::new(test_config());
         app.input = "/exit".to_string();
         let (sender, _receiver) = mpsc::channel();
 
@@ -484,15 +612,15 @@ mod tests {
 
     #[test]
     fn response_deltas_stream_into_active_answer() {
-        let mut app = App::new("http://localhost:4000".to_string());
+        let mut app = App::new(test_config());
         app.active_task_id = Some(7);
 
         app.handle_worker_event(WorkerEvent::ResponseStarted { task_id: 7 });
         app.handle_worker_event(WorkerEvent::ResponseDelta {
             task_id: 7,
-            delta: 'S',
+            delta: "Ship".to_string(),
         });
 
-        assert!(matches!(app.feed.last(), Some(FeedItem::Assistant(answer)) if answer == "S"));
+        assert!(matches!(app.feed.last(), Some(FeedItem::Assistant(answer)) if answer == "Ship"));
     }
 }

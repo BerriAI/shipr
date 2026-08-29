@@ -1,3 +1,5 @@
+mod agent;
+mod tools;
 mod tui;
 
 use anyhow::{Context, Result, bail};
@@ -36,6 +38,7 @@ struct Cli {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Start,
+    Login,
     Run {
         #[arg(help = "Coding task to execute")]
         task: String,
@@ -55,6 +58,7 @@ enum Commands {
 struct ShiprrConfig {
     base_url: String,
     api_key: String,
+    model: String,
 }
 
 fn main() -> Result<()> {
@@ -62,7 +66,8 @@ fn main() -> Result<()> {
 
     match cli.command {
         None => launch_tui(),
-        Some(Commands::Start) => start_setup(),
+        Some(Commands::Start) => start_setup(false),
+        Some(Commands::Login) => start_setup(true),
         Some(Commands::Run {
             task,
             quality,
@@ -75,7 +80,12 @@ fn main() -> Result<()> {
 
 fn launch_tui() -> Result<()> {
     let config = ensure_config()?;
-    tui::run(config.base_url)
+    tui::run(tui::TuiConfig {
+        base_url: config.base_url,
+        api_key: config.api_key,
+        model: config.model,
+        workspace: std::env::current_dir().context("failed to open current workspace")?,
+    })
 }
 
 fn ensure_config() -> Result<ShiprrConfig> {
@@ -83,14 +93,14 @@ fn ensure_config() -> Result<ShiprrConfig> {
         return Ok(config);
     }
 
-    start_setup()?;
+    start_setup(false)?;
     load_config()?.context("failed to load config after setup")
 }
 
-fn start_setup() -> Result<()> {
+fn start_setup(force_login: bool) -> Result<()> {
     print_shiprr_banner();
 
-    if let Some(config) = load_config()? {
+    if !force_login && let Some(config) = load_config()? {
         println!(
             "{} {}",
             "Already logged in:".truecolor(147, 197, 253),
@@ -100,6 +110,11 @@ fn start_setup() -> Result<()> {
             "{} {}",
             "config:".truecolor(147, 197, 253),
             config_path().display().to_string().bright_white()
+        );
+        println!(
+            "{} {}",
+            "model:".truecolor(147, 197, 253),
+            config.model.bright_white()
         );
         return Ok(());
     }
@@ -119,13 +134,23 @@ fn start_setup() -> Result<()> {
         .interact()
         .context("failed to read API key input")?;
 
-    let config = ShiprrConfig { base_url, api_key };
+    let model: String = Input::new()
+        .with_prompt("LiteLLM model or auto-router alias")
+        .default("auto_router1".to_string())
+        .interact_text()
+        .context("failed to read model input")?;
+
+    let config = ShiprrConfig {
+        base_url,
+        api_key,
+        model,
+    };
     validate_config(&config)?;
     save_config(&config)?;
 
     println!(
         "{}",
-        "Login successful. Starting Shiprr…".truecolor(147, 197, 253)
+        "Login saved. Run shipr to start coding.".truecolor(147, 197, 253)
     );
     Ok(())
 }
@@ -216,6 +241,7 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
         .with_context(|| format!("failed to read config at {}", path.display()))?;
     let mut base_url = None;
     let mut api_key = None;
+    let mut model = None;
 
     for raw_line in content.lines() {
         let line = raw_line.trim();
@@ -227,6 +253,7 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
             match key.trim() {
                 "base_url" => base_url = Some(cleaned),
                 "api_key" => api_key = Some(cleaned),
+                "model" => model = Some(cleaned),
                 _ => {}
             }
         }
@@ -235,7 +262,14 @@ fn load_config() -> Result<Option<ShiprrConfig>> {
     let (Some(base_url), Some(api_key)) = (base_url, api_key) else {
         return Ok(None);
     };
-    let config = ShiprrConfig { base_url, api_key };
+    let config = ShiprrConfig {
+        base_url,
+        api_key,
+        model: std::env::var("SHIPR_MODEL")
+            .ok()
+            .or(model)
+            .unwrap_or_else(|| "auto_router1".to_string()),
+    };
     validate_config(&config)?;
     Ok(Some(config))
 }
@@ -247,6 +281,9 @@ fn validate_config(config: &ShiprrConfig) -> Result<()> {
     if config.api_key.trim().is_empty() {
         bail!("API key cannot be empty");
     }
+    if config.model.trim().is_empty() {
+        bail!("model cannot be empty");
+    }
     Ok(())
 }
 
@@ -257,8 +294,8 @@ fn save_config(config: &ShiprrConfig) -> Result<()> {
         .with_context(|| format!("failed to create config directory {}", parent.display()))?;
 
     let content = format!(
-        "base_url = \"{}\"\napi_key = \"{}\"\n",
-        config.base_url, config.api_key
+        "base_url = \"{}\"\napi_key = \"{}\"\nmodel = \"{}\"\n",
+        config.base_url, config.api_key, config.model
     );
     fs::write(&path, content)
         .with_context(|| format!("failed to write config file {}", path.display()))?;
