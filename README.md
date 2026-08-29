@@ -15,29 +15,33 @@ cd shiprr
 shipr
 ```
 
-`shipr` opens an agentic CLI prompt where plain text is treated as a task.
+`shipr` opens a full-screen agentic terminal UI. The conversation and work log
+scroll above a persistent composer at the bottom of the screen.
 
 ## CLI flow (Claude/Codex-like)
 
 ```text
-❯ shipr
-❯ fix retry typo in docs
-... thought block
-... progress block
-... recap
-❯ /status
-❯ /tasks
-❯ /exit
+┌ shiprr ───────────────────────────────────────────────┐
+│ › fix retry typo in docs                              │
+│                                                      │
+│ Thought for a moment                                 │
+│ ● Route   Classified task and selected a model       │
+│ ● Inspect Read repository context                    │
+│ ● Work    Prepared edits and verification            │
+│                                                      │
+│ ● Response appears here                              │
+├ Ask Shiprr ──────────────────────────────────────────┤
+│ › type your next task                                │
+└──────────────────────────────────────────────────────┘
 ```
+
+While a task runs, an animated `Processing…` row appears directly above the
+composer. Press `Esc` to cancel or `Ctrl+C` to exit.
 
 ## Commands
 
 - `/help`
-- `/status`
-- `/tasks`
-- `/preview`
-- `/plan <task>`
-- `/login`
+- `/clear`
 - `/exit`
 
 ## Why Shiprr
@@ -45,7 +49,7 @@ shipr
 - Minimal by design: just an agentic loop
 - Harness-level smart routing chooses cheaper viable policy first
 - Manual overrides available in direct run mode (`shipr run ... --quality ... --budget ...`)
-- Devtool aesthetic: dark, compact, low-noise output
+- IDE-like terminal surface with a fixed composer and streaming work feed
 
 ## Architecture
 

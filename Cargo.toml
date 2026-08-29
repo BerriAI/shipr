@@ -15,6 +15,8 @@ members = ["crates/shipr-smart-routing"]
 [dependencies]
 anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
+crossterm = "0.28"
 dialoguer = "0.11"
 owo-colors = "4.1"
+ratatui = "0.29"
 shipr-smart-routing = { path = "crates/shipr-smart-routing" }
