@@ -6,11 +6,11 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Installing routr..."
+echo "Installing shipr..."
 cargo install --path . --force
 
 echo
 echo "Installed. Run:"
-echo "  routr"
+echo "  shipr"
 echo "or"
-echo "  routr start"
+echo "  shipr start"

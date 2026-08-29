@@ -25,25 +25,37 @@ const BORDER: Color = Color::Rgb(72, 78, 90);
 
 #[derive(Debug)]
 enum FeedItem {
+    Banner,
     User(String),
-    Thought(String),
-    Work { label: String, detail: String },
     Assistant(String),
     Meta(String),
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ActivityStage {
+    Routing,
+    Inspecting,
+    Planning,
+    Responding,
+}
+
+impl ActivityStage {
+    fn description(self) -> &'static str {
+        match self {
+            Self::Routing => "Choosing the cheapest capable model",
+            Self::Inspecting => "Reading context",
+            Self::Planning => "Planning the response",
+            Self::Responding => "Writing the response",
+        }
+    }
+}
+
 #[derive(Debug)]
 enum WorkerEvent {
-    Work {
-        task_id: u64,
-        label: &'static str,
-        detail: &'static str,
-    },
-    Done {
-        task_id: u64,
-        answer: String,
-        recap: String,
-    },
+    Progress { task_id: u64, stage: ActivityStage },
+    ResponseStarted { task_id: u64 },
+    ResponseDelta { task_id: u64, delta: char },
+    Done { task_id: u64, recap: String },
 }
 
 #[derive(Debug)]
@@ -51,6 +63,7 @@ struct App {
     input: String,
     feed: Vec<FeedItem>,
     processing: bool,
+    activity: Option<ActivityStage>,
     started_processing: Option<Instant>,
     active_task_id: Option<u64>,
     next_task_id: u64,
@@ -62,10 +75,12 @@ impl App {
     fn new(base_url: String) -> Self {
         Self {
             input: String::new(),
-            feed: vec![FeedItem::Meta(
-                "Type a coding task below. /help for commands.".to_string(),
-            )],
+            feed: vec![
+                FeedItem::Banner,
+                FeedItem::Meta("Type a coding task below. /help for commands.".to_string()),
+            ],
             processing: false,
+            activity: None,
             started_processing: None,
             active_task_id: None,
             next_task_id: 1,
@@ -90,11 +105,9 @@ impl App {
         self.next_task_id += 1;
         self.active_task_id = Some(task_id);
         self.processing = true;
+        self.activity = Some(ActivityStage::Routing);
         self.started_processing = Some(Instant::now());
         self.feed.push(FeedItem::User(prompt.clone()));
-        self.feed.push(FeedItem::Thought(
-            "Analyzing the request and selecting the cheapest capable route.".to_string(),
-        ));
 
         spawn_task(task_id, prompt, self.base_url.clone(), sender.clone());
     }
@@ -115,24 +128,23 @@ impl App {
 
     fn handle_worker_event(&mut self, event: WorkerEvent) {
         match event {
-            WorkerEvent::Work {
-                task_id,
-                label,
-                detail,
-            } if self.active_task_id == Some(task_id) => {
-                self.feed.push(FeedItem::Work {
-                    label: label.to_string(),
-                    detail: detail.to_string(),
-                });
+            WorkerEvent::Progress { task_id, stage } if self.active_task_id == Some(task_id) => {
+                self.activity = Some(stage);
             }
-            WorkerEvent::Done {
-                task_id,
-                answer,
-                recap,
-            } if self.active_task_id == Some(task_id) => {
-                self.feed.push(FeedItem::Assistant(answer));
+            WorkerEvent::ResponseStarted { task_id } if self.active_task_id == Some(task_id) => {
+                self.feed.push(FeedItem::Assistant(String::new()));
+            }
+            WorkerEvent::ResponseDelta { task_id, delta }
+                if self.active_task_id == Some(task_id) =>
+            {
+                if let Some(FeedItem::Assistant(answer)) = self.feed.last_mut() {
+                    answer.push(delta);
+                }
+            }
+            WorkerEvent::Done { task_id, recap } if self.active_task_id == Some(task_id) => {
                 self.feed.push(FeedItem::Meta(recap));
                 self.processing = false;
+                self.activity = None;
                 self.started_processing = None;
                 self.active_task_id = None;
             }
@@ -143,6 +155,7 @@ impl App {
     fn cancel(&mut self) {
         if self.processing {
             self.processing = false;
+            self.activity = None;
             self.started_processing = None;
             self.active_task_id = None;
             self.feed
@@ -232,6 +245,7 @@ fn draw(frame: &mut ratatui::Frame<'_>, app: &App) {
 
 fn draw_header(frame: &mut ratatui::Frame<'_>, area: Rect) {
     let header = Paragraph::new(Line::from(vec![
+        Span::styled(" ▣▣▣ ", Style::default().fg(BLUE_DIM)),
         Span::styled(
             " shiprr ",
             Style::default().fg(Color::Black).bg(BLUE).bold(),
@@ -262,31 +276,29 @@ fn feed_lines(items: &[FeedItem]) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
     for item in items {
         match item {
+            FeedItem::Banner => {
+                for line in [
+                    "                 ┌──────┬──────┬──────┐",
+                    "                 │  ▣▣  │  ▣▣  │  ▣▣  │",
+                    "            ┌────┴──────┴──────┴──────┴────┐",
+                    "        ____│          S H I P R R          │____",
+                    "     __/____└──────────────────────────────┘____\\__",
+                    "     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+                    "           ship code. route smart. pay less.",
+                    "",
+                ] {
+                    lines.push(Line::from(Span::styled(
+                        line,
+                        Style::default().fg(BLUE_DIM).bold(),
+                    )));
+                }
+            }
             FeedItem::User(text) => {
                 lines.push(Line::from(vec![
                     Span::styled("› ", Style::default().fg(BLUE).bold()),
                     Span::styled(text.clone(), Style::default().fg(TEXT).bold()),
                 ]));
                 lines.push(Line::default());
-            }
-            FeedItem::Thought(text) => {
-                lines.push(Line::from(Span::styled(
-                    "Thought for a moment",
-                    Style::default().fg(MUTED),
-                )));
-                lines.push(Line::from(vec![
-                    Span::styled("• ", Style::default().fg(BLUE_DIM)),
-                    Span::styled(text.clone(), Style::default().fg(TEXT)),
-                ]));
-                lines.push(Line::default());
-            }
-            FeedItem::Work { label, detail } => {
-                lines.push(Line::from(vec![
-                    Span::styled("● ", Style::default().fg(BLUE)),
-                    Span::styled(label.clone(), Style::default().fg(TEXT).bold()),
-                    Span::styled("  ", Style::default()),
-                    Span::styled(detail.clone(), Style::default().fg(MUTED)),
-                ]));
             }
             FeedItem::Assistant(text) => {
                 lines.push(Line::default());
@@ -320,9 +332,14 @@ fn draw_processing(frame: &mut ratatui::Frame<'_>, area: Rect, app: &App) {
         .map(|started| (started.elapsed().as_millis() / 120) as usize)
         .unwrap_or_default();
     let spinner = ["✦", "✧", "◆", "◇"][frame_index % 4];
+    let activity = app
+        .activity
+        .map(ActivityStage::description)
+        .unwrap_or("Working");
     let processing = Paragraph::new(Line::from(vec![
         Span::styled(format!(" {spinner} "), Style::default().fg(BLUE).bold()),
         Span::styled("Processing…", Style::default().fg(BLUE_DIM).bold()),
+        Span::styled(format!("  {activity}"), Style::default().fg(TEXT)),
         Span::styled("   esc to cancel", Style::default().fg(MUTED)),
     ]));
     frame.render_widget(processing, area);
@@ -378,21 +395,16 @@ fn spawn_task(task_id: u64, prompt: String, base_url: String, sender: Sender<Wor
     thread::spawn(move || {
         let routing = resolve_routing_policy(&prompt, None, None);
         let model = select_model(&routing.policy);
-        let steps = [
-            ("Route", "Classified task and selected a cost-aware model"),
-            ("Inspect", "Read the request and assembled working context"),
-            ("Plan", "Created a minimal execution plan"),
-            ("Work", "Prepared the response and verification summary"),
+        let stages = [
+            ActivityStage::Routing,
+            ActivityStage::Inspecting,
+            ActivityStage::Planning,
         ];
 
-        for (label, detail) in steps {
-            thread::sleep(Duration::from_millis(450));
+        for stage in stages {
+            thread::sleep(Duration::from_millis(350));
             if sender
-                .send(WorkerEvent::Work {
-                    task_id,
-                    label,
-                    detail,
-                })
+                .send(WorkerEvent::Progress { task_id, stage })
                 .is_err()
             {
                 return;
@@ -400,15 +412,34 @@ fn spawn_task(task_id: u64, prompt: String, base_url: String, sender: Sender<Wor
         }
 
         let answer = answer_for(&prompt, model.name);
+        if sender
+            .send(WorkerEvent::Progress {
+                task_id,
+                stage: ActivityStage::Responding,
+            })
+            .is_err()
+            || sender
+                .send(WorkerEvent::ResponseStarted { task_id })
+                .is_err()
+        {
+            return;
+        }
+
+        for delta in answer.chars() {
+            if sender
+                .send(WorkerEvent::ResponseDelta { task_id, delta })
+                .is_err()
+            {
+                return;
+            }
+            thread::sleep(Duration::from_millis(12));
+        }
+
         let recap = format!(
             "recap: routed via {} on {} · estimated tier {}",
             model.name, base_url, model.estimated_cost
         );
-        let _ = sender.send(WorkerEvent::Done {
-            task_id,
-            answer,
-            recap,
-        });
+        let _ = sender.send(WorkerEvent::Done { task_id, recap });
     });
 }
 
@@ -450,5 +481,19 @@ mod tests {
         app.submit(&sender);
 
         assert!(app.should_quit);
+    }
+
+    #[test]
+    fn response_deltas_stream_into_active_answer() {
+        let mut app = App::new("http://localhost:4000".to_string());
+        app.active_task_id = Some(7);
+
+        app.handle_worker_event(WorkerEvent::ResponseStarted { task_id: 7 });
+        app.handle_worker_event(WorkerEvent::ResponseDelta {
+            task_id: 7,
+            delta: 'S',
+        });
+
+        assert!(matches!(app.feed.last(), Some(FeedItem::Assistant(answer)) if answer == "S"));
     }
 }

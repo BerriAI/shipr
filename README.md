@@ -2,6 +2,9 @@
 
 Shiprr is a minimal coding harness with a smart routing layer designed to cut costs on top of LiteLLM Auto Router.
 
+The visual identity uses a blue cargo ship and container motif. The workspace is
+dark, sparse, and terminal-native, inspired by the restraint of tools like Ghostty.
+
 ## Install
 
 ```bash
@@ -22,21 +25,24 @@ scroll above a persistent composer at the bottom of the screen.
 
 ```text
 ┌ shiprr ───────────────────────────────────────────────┐
+│          ┌──────┬──────┬──────┐                     │
+│     _____│  ▣▣  │  ▣▣  │  ▣▣  │_____                │
+│  __/_____└──────┴──────┴──────┘_____\__             │
 │ › fix retry typo in docs                              │
 │                                                      │
-│ Thought for a moment                                 │
-│ ● Route   Classified task and selected a model       │
-│ ● Inspect Read repository context                    │
-│ ● Work    Prepared edits and verification            │
+│ ✦ Processing… Reading context                        │
 │                                                      │
-│ ● Response appears here                              │
+│ ● Response streams here token by token               │
 ├ Ask Shiprr ──────────────────────────────────────────┤
 │ › type your next task                                │
 └──────────────────────────────────────────────────────┘
 ```
 
-While a task runs, an animated `Processing…` row appears directly above the
-composer. Press `Esc` to cancel or `Ctrl+C` to exit.
+While a task runs, one animated `Processing…` row changes from routing to
+reading, planning, and responding. These transient stages are not retained in
+the transcript. The answer streams into the conversation as it is generated.
+Real tool calls will be retained once tool execution is wired. Press `Esc` to
+cancel or `Ctrl+C` to exit.
 
 ## Commands
 

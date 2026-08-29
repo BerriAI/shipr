@@ -75,6 +75,8 @@ fn ensure_config() -> Result<ShiprrConfig> {
 }
 
 fn start_setup() -> Result<()> {
+    print_shiprr_banner();
+
     if let Some(config) = load_config()? {
         println!(
             "{} {}",
@@ -155,17 +157,14 @@ fn show_plan(task: &str) -> Result<()> {
 }
 
 fn preview_branding() -> Result<()> {
-    println!();
-    println!(
-        "{}",
-        "shiprr — minimal agentic coding CLI".bold().bright_white()
-    );
+    print_shiprr_banner();
+    println!("{}", "minimal agentic coding CLI".bold().bright_white());
     println!(
         "{} persistent IDE-like terminal surface",
         "•".truecolor(96, 165, 250)
     );
     println!(
-        "{} work events and responses in one feed",
+        "{} transient processing and durable responses",
         "•".truecolor(96, 165, 250)
     );
     println!(
@@ -173,6 +172,41 @@ fn preview_branding() -> Result<()> {
         "•".truecolor(96, 165, 250)
     );
     Ok(())
+}
+
+fn print_shiprr_banner() {
+    println!();
+    println!(
+        "{}",
+        "             ┌────┬────┬────┐".truecolor(96, 165, 250)
+    );
+    println!(
+        "{}",
+        "             │ ▣  │ ▣  │ ▣  │".truecolor(96, 165, 250)
+    );
+    println!(
+        "{}",
+        "        ┌────┴────┴────┴────┴────┐".truecolor(59, 130, 246)
+    );
+    println!(
+        "{}",
+        "    ____│       S H I P R R       │____"
+            .bold()
+            .truecolor(147, 197, 253)
+    );
+    println!(
+        "{}",
+        " __/____└─────────────────────────┘____\\__".truecolor(59, 130, 246)
+    );
+    println!(
+        "{}",
+        " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~".truecolor(37, 99, 235)
+    );
+    println!(
+        "{}",
+        "       ship code. route smart. pay less.".truecolor(135, 145, 160)
+    );
+    println!();
 }
 
 fn config_path() -> PathBuf {
