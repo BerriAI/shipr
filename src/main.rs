@@ -134,34 +134,34 @@ fn start_setup() -> Result<()> {
 }
 
 fn preview_branding() -> Result<()> {
-    print_header("LiteCode CLI", "Code fast. Route smart. Spend less.");
+    print_header("LiteCode", "lightweight litellm coding harness");
 
-    println!("{}", "\nKey Benefits".bold().cyan());
+    print_section("key benefits");
     println!(
-        "  {} Simple UX: one command starts the harness loop",
-        "●".bright_blue()
+        "  {} one command starts the harness loop",
+        "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} LiteLLM-native routing for lower cost",
-        "●".bright_blue()
+        "  {} litellm-native routing for lower cost",
+        "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} Devtool feel: clean output, tiny mental overhead",
-        "●".bright_blue()
+        "  {} clean output, low cognitive overhead",
+        "•".truecolor(246, 178, 137)
     );
 
-    println!("{}", "\nBrand Theme".bold().cyan());
+    print_section("brand theme");
     println!(
-        "  {} Dark terminal, cyan accents, precise status lines",
-        "●".bright_green()
+        "  {} dark surface, warm accent, understated text",
+        "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} Voice: sharp, calm, engineering-first",
-        "●".bright_green()
+        "  {} sharp and calm engineering voice",
+        "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} Tagline: \"Fast coding harness on LiteLLM\"",
-        "●".bright_green()
+        "  {} tagline: fast coding harness on litellm",
+        "•".truecolor(246, 178, 137)
     );
 
     print_architecture_diagram();
@@ -169,25 +169,39 @@ fn preview_branding() -> Result<()> {
 
     println!(
         "\n{} {}",
-        "Try:".bold().white(),
-        "litecode run \"add retry middleware\" --quality balanced --budget cheap".bright_black()
+        "try".bold().bright_white(),
+        "litecode run \"add retry middleware\" --quality balanced --budget cheap"
+            .truecolor(148, 163, 184)
     );
 
     Ok(())
 }
 
 fn show_plan(task: &str) -> Result<()> {
-    print_header("LiteCode Plan", "Minimal harness loop for coding tasks");
-    println!("{} {}", "Task:".bold().white(), task.bright_white());
-
-    println!("\n{}", "Execution Plan".bold().cyan());
+    print_header("LiteCode", "plan mode");
     println!(
-        "  1) {} Understand task + repo context",
-        "PLAN".bright_blue()
+        "{} {}",
+        "task".bold().bright_white(),
+        task.truecolor(226, 232, 240)
     );
-    println!("  2) {} Route model via policy", "ROUTE".bright_blue());
-    println!("  3) {} Implement focused changes", "BUILD".bright_blue());
-    println!("  4) {} Run checks + summarize", "VERIFY".bright_blue());
+
+    print_section("execution plan");
+    println!(
+        "  {} understand task and repo context",
+        "1.".truecolor(246, 178, 137)
+    );
+    println!(
+        "  {} route model using quality and budget policy",
+        "2.".truecolor(246, 178, 137)
+    );
+    println!(
+        "  {} implement focused code changes",
+        "3.".truecolor(246, 178, 137)
+    );
+    println!(
+        "  {} run checks and summarize result",
+        "4.".truecolor(246, 178, 137)
+    );
     Ok(())
 }
 
@@ -196,27 +210,31 @@ fn run_task(task: String, policy: RouterPolicy) -> Result<()> {
         bail!("not signed in. Run `litecode start` first.");
     };
 
-    print_header("LiteCode Run", "Lightweight coding harness");
-    println!("{} {}", "Task:".bold().white(), task.bright_white());
+    print_header("LiteCode", "run mode");
     println!(
         "{} {}",
-        "LiteLLM:".bold().white(),
-        config.base_url.bright_black()
+        "task".bold().bright_white(),
+        task.truecolor(226, 232, 240)
+    );
+    println!(
+        "{} {}",
+        "litellm".bold().bright_white(),
+        config.base_url.truecolor(148, 163, 184)
     );
     println!(
         "{} quality={} budget={}",
-        "Policy:".bold().white(),
-        format_quality(policy.quality).bright_cyan(),
-        format_budget(policy.budget).bright_green()
+        "policy".bold().bright_white(),
+        format_quality(policy.quality).truecolor(226, 232, 240),
+        format_budget(policy.budget).truecolor(226, 232, 240)
     );
 
     let model = select_model(&policy);
     println!(
         "{} {} ({}, est {})",
-        "Route:".bold().white(),
-        model.name.bright_yellow(),
-        model.rationale.bright_black(),
-        model.estimated_cost.bright_black()
+        "route".bold().bright_white(),
+        model.name.truecolor(246, 178, 137),
+        model.rationale.truecolor(148, 163, 184),
+        model.estimated_cost.truecolor(148, 163, 184)
     );
 
     let loop_steps = [
@@ -226,15 +244,21 @@ fn run_task(task: String, policy: RouterPolicy) -> Result<()> {
         ("SUMMARIZE", "Return final result"),
     ];
 
-    println!("\n{}", "Harness Loop".bold().cyan());
+    print_section("harness loop");
     for (phase, detail) in loop_steps {
-        println!("  {} {:<9} {}", "▶".bright_blue(), phase.bold(), detail);
+        println!(
+            "  {} {}  {}",
+            "•".truecolor(246, 178, 137),
+            phase.bold().bright_white(),
+            detail.truecolor(203, 213, 225)
+        );
     }
 
     println!(
         "\n{} {}",
-        "Outcome:".bold().white(),
-        "Ready to execute against your repo with low-cost routing defaults".bright_white()
+        "outcome".bold().bright_white(),
+        "ready to execute against your repo with low-cost routing defaults"
+            .truecolor(226, 232, 240)
     );
 
     Ok(())
@@ -345,47 +369,47 @@ fn print_header(title: &str, subtitle: &str) {
     println!();
     println!(
         "{}",
-        "╭──────────────────────────────────────────────────────────────╮".bright_blue()
+        "──────────────────────────────────────────────────────────────".truecolor(71, 85, 105)
     );
     println!(
-        "{} {} {}",
-        "│".bright_blue(),
-        "LiteCode CLI".bold().bright_cyan(),
-        "│".bright_blue()
-    );
-    println!(
-        "{} {} {}",
-        "│".bright_blue(),
-        subtitle.bright_black(),
-        "│".bright_blue()
+        "{}  {}  {}",
+        "✶".truecolor(246, 178, 137),
+        title.bold().bright_white(),
+        subtitle.truecolor(148, 163, 184)
     );
     println!(
         "{}",
-        "╰──────────────────────────────────────────────────────────────╯".bright_blue()
+        "──────────────────────────────────────────────────────────────".truecolor(71, 85, 105)
     );
-    println!("{}", title.bold().bright_white());
+}
+
+fn print_section(name: &str) {
+    println!();
+    println!(
+        "{} {}",
+        "▍".truecolor(246, 178, 137),
+        name.bold().truecolor(226, 232, 240)
+    );
 }
 
 fn print_architecture_diagram() {
-    println!("\n{}", "Architecture".bold().cyan());
-    println!("  Developer");
-    println!("      │");
-    println!("      ▼");
-    println!("  LiteCode CLI");
-    println!("      │");
-    println!("      ▼");
-    println!("  Harness Loop (plan → execute → verify → summarize)");
-    println!("      │");
-    println!("      ▼");
-    println!("  LiteLLM Auto Router");
-    println!("    ├─ fast-mini");
-    println!("    ├─ coder-balanced");
-    println!("    └─ reasoning-pro");
+    print_section("architecture");
+    println!("  developer");
+    println!("    └─ litecode cli");
+    println!("       └─ harness loop (plan → execute → verify → summarize)");
+    println!("          └─ litellm auto router");
+    println!("             ├─ fast-mini");
+    println!("             ├─ coder-balanced");
+    println!("             └─ reasoning-pro");
 }
 
 fn print_flow_diagram() {
-    println!("\n{}", "Cost-Optimized Flow".bold().cyan());
-    println!("  task input → policy (quality+budget) → route model → code loop → patch output");
+    print_section("cost-optimized flow");
+    println!("  task input");
+    println!("    └─ policy (quality + budget)");
+    println!("       └─ route model");
+    println!("          └─ code loop");
+    println!("             └─ patch output");
 }
 
 fn format_quality(quality: Quality) -> &'static str {
