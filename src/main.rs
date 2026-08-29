@@ -1,16 +1,17 @@
 use anyhow::{Context, Result, bail};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use dialoguer::{Input, Password};
 use owo_colors::OwoColorize;
+use routr_smart_routing::{Budget, Quality, resolve_routing_policy, select_model};
 use std::fs;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "litecode",
+    name = "routr",
     version,
-    about = "LiteCode CLI — fast coding harness for LiteLLM",
-    long_about = "A super lightweight CLI harness for coding tasks.\nRuns a simple plan -> execute -> verify -> summarize loop and optimizes for cost with LiteLLM Auto Router."
+    about = "Routr — minimal coding harness with smart low-cost routing",
+    long_about = "A lightweight CLI harness for coding tasks.\nRuns a tiny plan -> execute -> verify -> summarize loop and uses harness-level smart routing to reduce cost."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -23,10 +24,10 @@ enum Commands {
     Run {
         #[arg(help = "Coding task to execute")]
         task: String,
-        #[arg(long, value_enum, default_value_t = Quality::Balanced)]
-        quality: Quality,
-        #[arg(long, value_enum, default_value_t = Budget::Cheap)]
-        budget: Budget,
+        #[arg(long, value_enum)]
+        quality: Option<Quality>,
+        #[arg(long, value_enum)]
+        budget: Option<Budget>,
     },
     Plan {
         #[arg(help = "Task to plan")]
@@ -35,35 +36,8 @@ enum Commands {
     Preview,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum Quality {
-    Fast,
-    Balanced,
-    High,
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-enum Budget {
-    Cheapest,
-    Cheap,
-    Flexible,
-}
-
 #[derive(Debug)]
-struct RouterPolicy {
-    quality: Quality,
-    budget: Budget,
-}
-
-#[derive(Debug)]
-struct ModelChoice {
-    name: &'static str,
-    rationale: &'static str,
-    estimated_cost: &'static str,
-}
-
-#[derive(Debug)]
-struct LiteCodeConfig {
+struct RoutrConfig {
     base_url: String,
     api_key: String,
 }
@@ -77,14 +51,14 @@ fn main() -> Result<()> {
             task,
             quality,
             budget,
-        } => run_task(task, RouterPolicy { quality, budget }),
+        } => run_task(task, quality, budget),
         Commands::Plan { task } => show_plan(&task),
         Commands::Preview => preview_branding(),
     }
 }
 
 fn start_setup() -> Result<()> {
-    print_header("LiteCode Start", "Fast coding harness setup");
+    print_header("Routr", "lightweight harness setup");
 
     if let Some(config) = load_config()? {
         println!(
@@ -94,13 +68,13 @@ fn start_setup() -> Result<()> {
         );
         println!(
             "{} {}",
-            "Config:".bold().white(),
-            config_path().display().to_string().bright_black()
+            "config".bold().bright_white(),
+            config_path().display().to_string().truecolor(148, 163, 184)
         );
         return Ok(());
     }
 
-    println!("{}", "Sign in to LiteLLM".bold().cyan());
+    print_section("sign in to litellm");
 
     let base_url: String = Input::new()
         .with_prompt("LiteLLM base URL")
@@ -114,53 +88,44 @@ fn start_setup() -> Result<()> {
         .interact()
         .context("failed to read API key input")?;
 
-    let config = LiteCodeConfig { base_url, api_key };
+    let config = RoutrConfig { base_url, api_key };
     validate_config(&config)?;
     save_config(&config)?;
 
-    println!("{} signed in and saved config", "✓".bright_green(),);
+    println!("{} signed in and saved config", "✓".bright_green());
     println!(
         "{} {}",
-        "Config:".bold().white(),
-        config_path().display().to_string().bright_black()
-    );
-    println!(
-        "{} {}",
-        "Next:".bold().white(),
-        "litecode run \"fix provider fallback\" --quality balanced --budget cheap".bright_black()
+        "next".bold().bright_white(),
+        "routr run \"refactor retry flow\"".truecolor(148, 163, 184)
     );
 
     Ok(())
 }
 
 fn preview_branding() -> Result<()> {
-    print_header("LiteCode", "lightweight litellm coding harness");
+    print_header("Routr", "minimal loop. smarter routing. lower cost.");
 
-    print_section("key benefits");
+    print_section("core pitch");
     println!(
-        "  {} one command starts the harness loop",
+        "  {} lightweight by default: just the agentic loop",
         "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} litellm-native routing for lower cost",
+        "  {} harness-level smart router for cheaper model selection",
         "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} clean output, low cognitive overhead",
+        "  {} built to be materially cheaper than heavy coding agents",
         "•".truecolor(246, 178, 137)
     );
 
-    print_section("brand theme");
+    print_section("aesthetic");
     println!(
-        "  {} dark surface, warm accent, understated text",
+        "  {} dark terminal, low-noise layout, warm accent",
         "•".truecolor(246, 178, 137)
     );
     println!(
-        "  {} sharp and calm engineering voice",
-        "•".truecolor(246, 178, 137)
-    );
-    println!(
-        "  {} tagline: fast coding harness on litellm",
+        "  {} compact sections, understated typography",
         "•".truecolor(246, 178, 137)
     );
 
@@ -170,15 +135,19 @@ fn preview_branding() -> Result<()> {
     println!(
         "\n{} {}",
         "try".bold().bright_white(),
-        "litecode run \"add retry middleware\" --quality balanced --budget cheap"
-            .truecolor(148, 163, 184)
+        "routr run \"fix readme typo\"".truecolor(148, 163, 184)
+    );
+    println!(
+        "{} {}",
+        "try".bold().bright_white(),
+        "routr run \"investigate race condition in retries\"".truecolor(148, 163, 184)
     );
 
     Ok(())
 }
 
 fn show_plan(task: &str) -> Result<()> {
-    print_header("LiteCode", "plan mode");
+    print_header("Routr", "plan mode");
     println!(
         "{} {}",
         "task".bold().bright_white(),
@@ -191,26 +160,35 @@ fn show_plan(task: &str) -> Result<()> {
         "1.".truecolor(246, 178, 137)
     );
     println!(
-        "  {} route model using quality and budget policy",
+        "  {} smart-route by complexity and cost policy",
         "2.".truecolor(246, 178, 137)
     );
     println!(
-        "  {} implement focused code changes",
+        "  {} apply focused code changes",
         "3.".truecolor(246, 178, 137)
     );
     println!(
-        "  {} run checks and summarize result",
+        "  {} verify output and summarize",
         "4.".truecolor(246, 178, 137)
     );
+
     Ok(())
 }
 
-fn run_task(task: String, policy: RouterPolicy) -> Result<()> {
+fn run_task(
+    task: String,
+    quality_override: Option<Quality>,
+    budget_override: Option<Budget>,
+) -> Result<()> {
     let Some(config) = load_config()? else {
-        bail!("not signed in. Run `litecode start` first.");
+        bail!("not signed in. Run `routr start` first.");
     };
 
-    print_header("LiteCode", "run mode");
+    let routing = resolve_routing_policy(&task, quality_override, budget_override);
+    let policy = routing.policy;
+    let model = select_model(&policy);
+
+    print_header("Routr", "run mode");
     println!(
         "{} {}",
         "task".bold().bright_white(),
@@ -227,8 +205,17 @@ fn run_task(task: String, policy: RouterPolicy) -> Result<()> {
         format_quality(policy.quality).truecolor(226, 232, 240),
         format_budget(policy.budget).truecolor(226, 232, 240)
     );
-
-    let model = select_model(&policy);
+    println!(
+        "{} {} ({})",
+        "routing".bold().bright_white(),
+        routing.mode.truecolor(246, 178, 137),
+        routing.task_kind.truecolor(148, 163, 184)
+    );
+    println!(
+        "{} {}",
+        "why".bold().bright_white(),
+        routing.reason.truecolor(148, 163, 184)
+    );
     println!(
         "{} {} ({}, est {})",
         "route".bold().bright_white(),
@@ -237,15 +224,13 @@ fn run_task(task: String, policy: RouterPolicy) -> Result<()> {
         model.estimated_cost.truecolor(148, 163, 184)
     );
 
-    let loop_steps = [
-        ("PLAN", "Build implementation checklist"),
-        ("EXEC", "Generate patch and apply changes"),
-        ("VERIFY", "Run targeted checks"),
-        ("SUMMARIZE", "Return final result"),
-    ];
-
-    print_section("harness loop");
-    for (phase, detail) in loop_steps {
+    print_section("agentic loop");
+    for (phase, detail) in [
+        ("PLAN", "build implementation checklist"),
+        ("EXEC", "generate patch and apply changes"),
+        ("VERIFY", "run targeted checks"),
+        ("SUMMARIZE", "return final result"),
+    ] {
         println!(
             "  {} {}  {}",
             "•".truecolor(246, 178, 137),
@@ -257,39 +242,18 @@ fn run_task(task: String, policy: RouterPolicy) -> Result<()> {
     println!(
         "\n{} {}",
         "outcome".bold().bright_white(),
-        "ready to execute against your repo with low-cost routing defaults"
-            .truecolor(226, 232, 240)
+        "minimal loop with cost-aware smart routing ready".truecolor(226, 232, 240)
     );
 
     Ok(())
 }
 
-fn select_model(policy: &RouterPolicy) -> ModelChoice {
-    match (policy.quality, policy.budget) {
-        (Quality::Fast, Budget::Cheapest) => ModelChoice {
-            name: "fast-mini",
-            rationale: "max speed / lowest cost",
-            estimated_cost: "$",
-        },
-        (Quality::High, Budget::Flexible) => ModelChoice {
-            name: "reasoning-pro",
-            rationale: "deeper coding reasoning",
-            estimated_cost: "$$$",
-        },
-        _ => ModelChoice {
-            name: "coder-balanced",
-            rationale: "best quality/cost mix",
-            estimated_cost: "$$",
-        },
-    }
-}
-
 fn config_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".litecode").join("config.toml")
+    PathBuf::from(home).join(".routr").join("config.toml")
 }
 
-fn load_config() -> Result<Option<LiteCodeConfig>> {
+fn load_config() -> Result<Option<RoutrConfig>> {
     let path = config_path();
     if !path.exists() {
         return Ok(None);
@@ -306,6 +270,7 @@ fn load_config() -> Result<Option<LiteCodeConfig>> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
+
         if let Some((key, value)) = line.split_once('=') {
             let cleaned = value.trim().trim_matches('"').to_string();
             match key.trim() {
@@ -323,12 +288,12 @@ fn load_config() -> Result<Option<LiteCodeConfig>> {
         return Ok(None);
     };
 
-    let config = LiteCodeConfig { base_url, api_key };
+    let config = RoutrConfig { base_url, api_key };
     validate_config(&config)?;
     Ok(Some(config))
 }
 
-fn validate_config(config: &LiteCodeConfig) -> Result<()> {
+fn validate_config(config: &RoutrConfig) -> Result<()> {
     if config.base_url.trim().is_empty() {
         bail!("base URL cannot be empty");
     }
@@ -338,7 +303,7 @@ fn validate_config(config: &LiteCodeConfig) -> Result<()> {
     Ok(())
 }
 
-fn save_config(config: &LiteCodeConfig) -> Result<()> {
+fn save_config(config: &RoutrConfig) -> Result<()> {
     let path = config_path();
     let parent = path.parent().context("missing config parent directory")?;
     fs::create_dir_all(parent)
@@ -395,21 +360,19 @@ fn print_section(name: &str) {
 fn print_architecture_diagram() {
     print_section("architecture");
     println!("  developer");
-    println!("    └─ litecode cli");
-    println!("       └─ harness loop (plan → execute → verify → summarize)");
-    println!("          └─ litellm auto router");
-    println!("             ├─ fast-mini");
-    println!("             ├─ coder-balanced");
-    println!("             └─ reasoning-pro");
+    println!("    └─ routr");
+    println!("       └─ minimal agentic loop");
+    println!("          └─ smart routing crate");
+    println!("             └─ litellm auto router");
 }
 
 fn print_flow_diagram() {
-    print_section("cost-optimized flow");
-    println!("  task input");
-    println!("    └─ policy (quality + budget)");
-    println!("       └─ route model");
-    println!("          └─ code loop");
-    println!("             └─ patch output");
+    print_section("cost flow");
+    println!("  task intent");
+    println!("    └─ infer complexity");
+    println!("       └─ choose quality and budget");
+    println!("          └─ pick cheapest viable model");
+    println!("             └─ execute loop and return patch");
 }
 
 fn format_quality(quality: Quality) -> &'static str {

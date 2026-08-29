@@ -1,29 +1,40 @@
-# LiteCode CLI (Rust prototype)
+# Routr (Rust prototype)
 
-A lightweight coding harness with a developer-tool style UI, designed to pair with LiteLLM Auto Router.
+Routr is a minimal coding harness with a smart routing layer designed to cut costs on top of LiteLLM Auto Router.
 
-## Quick run
+## Install
 
 ```bash
 cd litecode-cli
-cargo run -- start
-cargo run -- preview
-cargo run -- run "implement streaming retry fallback" --quality high --budget cheap
+./scripts/install.sh
 ```
 
-## V0 shape
+## Start
 
-- **Preview mode** for branding + architecture output
-- **Start mode** for first-run LiteLLM sign-in
-- **Plan mode** for a minimal implementation plan
-- **Run mode** for a simple harness loop:
-  - plan → execute → verify → summarize
-- **Router policy** inputs:
-  - `--quality fast|balanced|high`
-  - `--budget cheapest|cheap|flexible`
+```bash
+routr
+```
 
-## Why this style
+`routr` with no args starts first-run sign-in.
 
-- Dark terminal, cyan accents, compact status lines
-- Feels like a fast coding devtool (minimal cognitive overhead)
-- Keeps the cost value prop obvious via routing and budget controls
+## Core commands
+
+```bash
+routr start
+routr preview
+routr run "fix readme typo"
+routr run "investigate race condition in retries"
+routr run "implement streaming retry fallback" --quality high --budget cheap
+```
+
+## Why Routr
+
+- Minimal by design: just an agentic loop
+- Harness-level smart routing chooses cheaper viable policy first
+- Manual overrides stay available with `--quality` and `--budget`
+- Devtool aesthetic: dark, compact, low-noise output
+
+## Architecture
+
+- Binary CLI: `src/main.rs`
+- Smart routing crate: `crates/routr-smart-routing/src/lib.rs`
